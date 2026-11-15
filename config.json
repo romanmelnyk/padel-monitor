@@ -42,8 +42,8 @@
     "enabled": true,
     "weekdays": [0, 1, 2, 3, 4],
     "from": "18:00",
-    "to": "22:00",
-    "min_duration_minutes": 120,
+    "to": "23:00",
+    "min_duration_minutes": 90,
     "on_window_open": false
   }
 }
