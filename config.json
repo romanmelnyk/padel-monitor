@@ -1,0 +1,18 @@
+{
+  "club_name": "Błonia Sport (Kraków)",
+  "club_id": "958662f0-0bd2-4fdc-8bef-bb2d69761adb",
+  "api_base": "https://app-twojtenis-api-p-weu.azurewebsites.net/api/v1",
+  "booking_url": "https://app.twojtenis.pl/#/clubs/958662f0-0bd2-4fdc-8bef-bb2d69761adb?tab=bookings",
+  "court_type": 8,
+  "days_ahead": 7,
+  "slot_minutes": 30,
+  "timezone": "Europe/Warsaw",
+  "alerts": {
+    "enabled": true,
+    "weekdays": [0, 1, 2, 3, 4],
+    "from": "18:00",
+    "to": "22:00",
+    "min_duration_minutes": 120,
+    "on_window_open": false
+  }
+}
