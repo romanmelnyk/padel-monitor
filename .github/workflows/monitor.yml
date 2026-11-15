@@ -23,11 +23,25 @@ jobs:
         with:
           python-version: "3.12"
 
+      # стан (які слоти вільні зараз) живе в кеші, а не в git, щоб репозиторій не роздувався
+      - name: Restore state
+        uses: actions/cache/restore@v4
+        with:
+          path: data/state.json
+          key: state-${{ github.run_id }}
+          restore-keys: state-
+
       - name: Collect slots
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python collector.py
+
+      - name: Save state
+        uses: actions/cache/save@v4
+        with:
+          path: data/state.json
+          key: state-${{ github.run_id }}
 
       - name: Build report
         run: python analyze.py
@@ -36,7 +50,7 @@ jobs:
         run: |
           git config user.name "padel-monitor"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data reports
+          git add -A data reports
           if git diff --cached --quiet; then exit 0; fi
           git commit -q -m "data $(date -u +%Y-%m-%dT%H:%MZ)"
           git pull -q --rebase

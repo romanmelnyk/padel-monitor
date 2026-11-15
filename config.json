@@ -1,12 +1,43 @@
 {
-  "club_name": "Błonia Sport (Kraków)",
-  "club_id": "958662f0-0bd2-4fdc-8bef-bb2d69761adb",
-  "api_base": "https://app-twojtenis-api-p-weu.azurewebsites.net/api/v1",
-  "booking_url": "https://app.twojtenis.pl/#/clubs/958662f0-0bd2-4fdc-8bef-bb2d69761adb?tab=bookings",
-  "court_type": 8,
-  "days_ahead": 7,
   "slot_minutes": 30,
   "timezone": "Europe/Warsaw",
+  "sources": [
+    {
+      "type": "tenis4u",
+      "short": "Fame",
+      "name": "Fame Sport Club",
+      "enabled": true,
+      "court_id": 104,
+      "api_base": "https://api.tenis4u.pl",
+      "client_header": "tenis4u-web-frontoffice/3.6.3",
+      "station_icon": "PADEL",
+      "booking_url": "https://app.tenis4u.pl/court/104",
+      "days_ahead": 30
+    },
+    {
+      "type": "tenis4u",
+      "short": "PadelHouse",
+      "name": "Padel House",
+      "enabled": true,
+      "court_id": 480,
+      "api_base": "https://api.tenis4u.pl",
+      "client_header": "tenis4u-web-frontoffice/3.6.3",
+      "station_icon": "PADEL",
+      "booking_url": "https://app.tenis4u.pl/court/480",
+      "days_ahead": 14
+    },
+    {
+      "type": "twojtenis",
+      "short": "Błonia",
+      "name": "Błonia Sport",
+      "enabled": true,
+      "club_id": "958662f0-0bd2-4fdc-8bef-bb2d69761adb",
+      "api_base": "https://app-twojtenis-api-p-weu.azurewebsites.net/api/v1",
+      "booking_url": "https://app.twojtenis.pl/#/clubs/958662f0-0bd2-4fdc-8bef-bb2d69761adb?tab=bookings",
+      "court_type": 8,
+      "days_ahead": 7
+    }
+  ],
   "alerts": {
     "enabled": true,
     "weekdays": [0, 1, 2, 3, 4],

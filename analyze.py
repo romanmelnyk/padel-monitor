@@ -75,7 +75,8 @@ def main() -> None:
     runs = load_csv(RUNS_FILE)
     REPORT_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    md: list[str] = [f"# Падел-аналітика: {cfg['club_name']}", ""]
+    clubs = ", ".join(s["name"] for s in cfg["sources"] if s.get("enabled", True))
+    md: list[str] = [f"# Падел-аналітика: {clubs}", ""]
     md.append(f"Ваш цільовий час: **{target_desc}**. Одиниця: год корту (1 клітинка = {step} хв).")
     md.append("")
 
@@ -208,11 +209,15 @@ def main() -> None:
     md.append("")
     md.append("## Відкриття нового дня (ваш час)")
     opened_t = [r for r in events if r["event"] == "opened" and r["_target"]]
-    days_opened = len({r["slot_date"] for r in opened_t})
-    if days_opened:
-        md.append(f"Нових днів: {days_opened}; у середньому вільно у ваш час при відкритті: "
-                  f"{hours(len(opened_t) / days_opened, step)} год. Новий день відкривається о "
-                  f"{Counter(r['_ts'].strftime('%H:%M') for r in opened_t).most_common(1)[0][0]} (найчастіше).")
+    by_club: dict[str, list[dict]] = defaultdict(list)
+    for r in opened_t:
+        by_club[r["court"].split(" · ", 1)[0]].append(r)
+    for club, rows_c in sorted(by_club.items()):
+        days_opened = len({r["slot_date"] for r in rows_c})
+        md.append(f"- **{club}**: нових днів {days_opened}; у середньому вільно у ваш час при відкритті "
+                  f"{hours(len(rows_c) / days_opened, step)} год; новий день з'являється найчастіше о "
+                  f"{Counter(r['_ts'].strftime('%H:%M') for r in rows_c).most_common(1)[0][0]}.")
+    if by_club:
         md.append("")
     md.append(speed_table("opened"))
     md.append("")
