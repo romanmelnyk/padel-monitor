@@ -192,19 +192,38 @@ def collect_twojtenis(src: dict, cfg: dict, tz: ZoneInfo, now: datetime) -> dict
         busy.setdefault((str(b["date"])[:10], b["locationId"]), []).append((start, end))
         n_bookings += 1
 
+    # закриття кортів змінюються рідко: кешуємо на годину, щоб не робити 8 запитів щоразу
+    cache_file = DATA / f"excludes_{src['short']}.json"
+    try:
+        ex_cache = json.loads(cache_file.read_text(encoding="utf-8")) if cache_file.exists() else {}
+    except (OSError, json.JSONDecodeError):
+        ex_cache = {}
+    now_ts = int(time.time())
     n_excludes = 0
     for d in days:
         iso = d.isoformat()
-        try:
-            items = http_json(f"{service}/api/v1/clubs/{club_id}/excludes/public?date={iso}") or []
-        except Exception as exc:  # noqa: BLE001
-            log(f"{src['short']}: excludes {iso}: {exc}")
-            continue
+        cached = ex_cache.get(iso)
+        if cached and now_ts - cached["ts"] < 3600:
+            items = cached["items"]
+        else:
+            try:
+                items = http_json(f"{service}/api/v1/clubs/{club_id}/excludes/public?date={iso}") or []
+            except Exception as exc:  # noqa: BLE001
+                log(f"{src['short']}: excludes {iso}: {exc}")
+                items = cached["items"] if cached else []
+            else:
+                ex_cache[iso] = {"ts": now_ts, "items": items}
         for ex in items:
             log(f"{src['short']}: exclude {iso}: {json.dumps(ex, ensure_ascii=False)[:300]}")
             for cid, start, end in exclude_intervals(ex, iso, court_ids):
                 busy.setdefault((iso, cid), []).append((start, end))
                 n_excludes += 1
+    try:
+        DATA.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text(json.dumps({k: v for k, v in ex_cache.items() if k >= days[0].isoformat()}),
+                              encoding="utf-8")
+    except OSError as exc:
+        log(f"{src['short']}: excludes cache: {exc}")
 
     step = cfg["slot_minutes"]
     free: set[str] = set()
@@ -504,14 +523,20 @@ def main() -> int:
             lines.append("Зараз у ваш час вільних блоків немає. Напишу, щойно щось звільниться.")
         send_telegram("\n".join(lines))
 
-    notify_kinds = {"freed"} | ({"opened"} if alerts.get("on_window_open") else set())
-    fresh = [
-        b for b in blocks
-        if any(new_kind.get(k) in notify_kinds for k in block_cells(b, cfg["slot_minutes"]))
-    ]
-    if fresh:
+    freed, opened = [], []
+    for b in blocks:
+        kinds = {new_kind.get(k) for k in block_cells(b, cfg["slot_minutes"])}
+        if "freed" in kinds:
+            freed.append(b)
+        elif "opened" in kinds and alerts.get("on_window_open"):
+            opened.append(b)
+    if freed:
         lines = [f"🎾 Звільнився корт (від {hours:g} год)"]
-        lines += format_blocks(fresh, sources)
+        lines += format_blocks(freed, sources)
+        send_telegram("\n".join(lines))
+    if opened:
+        lines = [f"🆕 Відкрилось бронювання на новий день (від {hours:g} год)"]
+        lines += format_blocks(opened, sources)
         send_telegram("\n".join(lines))
     return 0
 

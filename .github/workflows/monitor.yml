@@ -16,14 +16,15 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  POLL_SECONDS: "120"     # інтервал між перевірками
-  RUN_MINUTES: "330"      # скільки працює один запуск (ліміт GitHub - 360)
-  COMMIT_EVERY: "5"       # комітити журнали кожну 5-ту перевірку (~10 хв)
+  POLL_SECONDS: "120"       # звичайний інтервал між перевірками
+  MIDNIGHT_POLL_SECONDS: "20"  # інтервал біля опівночі (23:57-00:10 за Варшавою), коли відкриваються нові дні
+  RUN_MINUTES: "300"        # скільки працює один запуск; біля опівночі подовжується, щоб не було паузи
+  COMMIT_EVERY_SECONDS: "600"  # комітити журнали раз на ~10 хв
 
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
 
@@ -57,14 +58,23 @@ jobs:
             git push -q || echo "push failed"
           }
 
+          # хвилини від півночі за варшавським часом
+          wmin() { local hm; hm=$(TZ=Europe/Warsaw date +%H%M); echo $(( 10#${hm:0:2} * 60 + 10#${hm:2:2} )); }
+          # 23:45-00:20: не завершуємо запуск (передача наступному = пауза ~1-2 хв)
+          near_midnight() { local m; m=$(wmin); [ "$m" -ge 1425 ] || [ "$m" -lt 20 ]; }
+          # 23:57-00:10: часті перевірки
+          hot() { local m; m=$(wmin); [ "$m" -ge 1437 ] || [ "$m" -lt 10 ]; }
+
           end=$(( $(date +%s) + RUN_MINUTES * 60 ))
-          i=0
-          while [ "$(date +%s)" -lt "$end" ]; do
+          last_commit=$(date +%s)
+          while [ "$(date +%s)" -lt "$end" ] || near_midnight; do
             started=$(date +%s)
-            i=$((i + 1))
             python collector.py || echo "collector failed"
-            if [ $((i % COMMIT_EVERY)) -eq 0 ]; then commit_data; fi
-            sleep_for=$(( POLL_SECONDS - ($(date +%s) - started) ))
+            if [ $(( started - last_commit )) -ge "$COMMIT_EVERY_SECONDS" ]; then
+              commit_data; last_commit=$(date +%s)
+            fi
+            if hot; then interval=$MIDNIGHT_POLL_SECONDS; else interval=$POLL_SECONDS; fi
+            sleep_for=$(( interval - ($(date +%s) - started) ))
             if [ "$sleep_for" -gt 0 ]; then sleep "$sleep_for"; fi
           done
           commit_data
