@@ -268,8 +268,11 @@ def collect_tenis4u(src: dict, cfg: dict, tz: ZoneInfo, now: datetime) -> dict:
     window: set[str] = set()
     n_courts = n_blockades = 0
 
+    excluded = set(src.get("exclude_station_ids", []))
     for st in occ.get("stations", []):
         if src.get("station_icon") and st.get("icon") != src["station_icon"]:
+            continue
+        if st.get("id") in excluded:
             continue
         n_courts += 1
         label = court_label(src, t4u_court_name(st))

@@ -1,7 +1,7 @@
 # Падел-монітор (twojtenis.pl + tenis4u.pl)
 
 Кожні ~10 хвилин перевіряє розклад падел-кортів у клубах із `config.json`:
-- **Fame Sport Club** (tenis4u.pl): «padel hala» (у залі) і «padel zewnętrzny» (надворі), бронювання на 30 днів наперед;
+- **Fame Sport Club** (tenis4u.pl): лише «padel hala» (у залі), бронювання на 30 днів наперед. Корт надворі «padel zewnętrzny» (id 1197) виключено через `exclude_station_ids`;
 - **Padel House** (tenis4u.pl): Padel 1–4, бронювання лише з початку години, на 14 днів наперед;
 - **Błonia Sport** (twojtenis.pl): Padel 1–4, бронювання на 7 днів наперед. Щоб вимкнути цей клуб, поставте `"enabled": false`.
 
