@@ -43,7 +43,7 @@ EVENT_FIELDS = ["ts", "slot_date", "slot_time", "court", "event", "lead_min", "f
 RUN_FIELDS = ["ts", "gap_min", "courts", "bookings", "excludes", "free_cells", "free_cells_target",
               "blocks_target", "events", "failed"]
 USER_AGENT = "padel-slot-monitor/1.0"
-ERROR_ALERT_AFTER = 6  # стільки невдалих запусків клубу поспіль -> одне попередження в Telegram
+ERROR_ALERT_AFTER = 15  # стільки невдалих перевірок клубу поспіль (~30 хв) -> одне попередження в Telegram
 
 
 def log(msg: str) -> None:

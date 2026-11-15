@@ -1,9 +1,12 @@
 name: padel-monitor
 
+# Один запуск працює ~5.5 год і перевіряє клуби кожні POLL_SECONDS секунд.
+# Розклад щогодини лише "підстраховує": поки йде запуск, наступний чекає в черзі
+# і стартує одразу після нього, тож перевірки йдуть майже без перерв.
 on:
   schedule:
-    - cron: "*/10 * * * *"   # кожні 10 хв (GitHub може запускати із запізненням)
-  workflow_dispatch: {}       # ручний запуск з вкладки Actions
+    - cron: "7 * * * *"
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -12,10 +15,15 @@ concurrency:
   group: padel-monitor
   cancel-in-progress: false
 
+env:
+  POLL_SECONDS: "120"     # інтервал між перевірками
+  RUN_MINUTES: "330"      # скільки працює один запуск (ліміт GitHub - 360)
+  COMMIT_EVERY: "5"       # комітити журнали кожну 5-ту перевірку (~10 хв)
+
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -31,27 +39,39 @@ jobs:
           key: state-${{ github.run_id }}
           restore-keys: state-
 
-      - name: Collect slots
+      - name: Poll loop
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python collector.py
+        run: |
+          git config user.name "padel-monitor"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          commit_data() {
+            python analyze.py || echo "analyze failed"
+            git add -A data reports
+            if git diff --cached --quiet; then return 0; fi
+            git commit -q -m "data $(date -u +%Y-%m-%dT%H:%MZ)"
+            # підтягуємо зміни коду/налаштувань: наступна перевірка вже йде з новою версією
+            git pull -q --rebase || { git rebase --abort; echo "pull failed"; return 0; }
+            git push -q || echo "push failed"
+          }
+
+          end=$(( $(date +%s) + RUN_MINUTES * 60 ))
+          i=0
+          while [ "$(date +%s)" -lt "$end" ]; do
+            started=$(date +%s)
+            i=$((i + 1))
+            python collector.py || echo "collector failed"
+            if [ $((i % COMMIT_EVERY)) -eq 0 ]; then commit_data; fi
+            sleep_for=$(( POLL_SECONDS - ($(date +%s) - started) ))
+            if [ "$sleep_for" -gt 0 ]; then sleep "$sleep_for"; fi
+          done
+          commit_data
 
       - name: Save state
+        if: always()
         uses: actions/cache/save@v4
         with:
           path: data/state.json
           key: state-${{ github.run_id }}
-
-      - name: Build report
-        run: python analyze.py
-
-      - name: Commit data
-        run: |
-          git config user.name "padel-monitor"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A data reports
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -q -m "data $(date -u +%Y-%m-%dT%H:%MZ)"
-          git pull -q --rebase
-          git push -q
