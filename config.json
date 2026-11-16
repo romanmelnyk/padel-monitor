@@ -13,7 +13,8 @@
       "station_icon": "PADEL",
       "booking_url": "https://app.tenis4u.pl/court/104",
       "exclude_station_ids": [1197],
-      "days_ahead": 30
+      "days_ahead": 30,
+      "hot_interval_seconds": 120
     },
     {
       "type": "tenis4u",
@@ -25,7 +26,8 @@
       "client_header": "tenis4u-web-frontoffice/3.6.3",
       "station_icon": "PADEL",
       "booking_url": "https://app.tenis4u.pl/court/480",
-      "days_ahead": 14
+      "days_ahead": 14,
+      "hot_interval_seconds": 120
     },
     {
       "type": "twojtenis",
