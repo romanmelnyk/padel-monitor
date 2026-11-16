@@ -10,6 +10,8 @@
       "court_id": 104,
       "api_base": "https://api.tenis4u.pl",
       "client_header": "tenis4u-web-frontoffice/3.6.3",
+      "min_interval_seconds": 240,
+      "hot_interval_seconds": 60,
       "station_icon": "PADEL",
       "booking_url": "https://app.tenis4u.pl/court/104",
       "exclude_station_ids": [1197],
@@ -23,6 +25,8 @@
       "court_id": 480,
       "api_base": "https://api.tenis4u.pl",
       "client_header": "tenis4u-web-frontoffice/3.6.3",
+      "min_interval_seconds": 240,
+      "hot_interval_seconds": 60,
       "station_icon": "PADEL",
       "booking_url": "https://app.tenis4u.pl/court/480",
       "days_ahead": 14

@@ -43,7 +43,7 @@ EVENT_FIELDS = ["ts", "slot_date", "slot_time", "court", "event", "lead_min", "f
 RUN_FIELDS = ["ts", "gap_min", "courts", "bookings", "excludes", "free_cells", "free_cells_target",
               "blocks_target", "events", "failed"]
 USER_AGENT = "padel-slot-monitor/1.0"
-ERROR_ALERT_AFTER = 15  # стільки невдалих перевірок клубу поспіль (~30 хв) -> одне попередження в Telegram
+ERROR_ALERT_MINUTES = 30  # клуб не дає даних стільки хвилин поспіль -> одне попередження в Telegram
 
 
 def log(msg: str) -> None:
@@ -100,14 +100,19 @@ def overlaps(t: int, step: int, intervals: list[tuple[int, int]]) -> bool:
     return any(s < t + step and e > t for s, e in intervals)
 
 
-def http_json(url: str, headers: dict | None = None):
+def http_json(url: str, headers: dict | None = None, meta: dict | None = None):
+    """GET + JSON. Якщо передано meta, туди пишуться статус, заголовки і початок тіла (для діагностики)."""
     h = {"User-Agent": USER_AGENT, "Accept": "application/json"}
     h.update(headers or {})
     req = urllib.request.Request(url, headers=h)
     for attempt in range(3):
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                raw = resp.read().decode("utf-8")
+                if meta is not None:
+                    meta.update({"status": resp.status, "headers": dict(resp.headers.items()),
+                                 "body_len": len(raw), "body_head": raw[:1500]})
+                return json.loads(raw)
         except urllib.error.HTTPError as exc:
             body = exc.read()[:200].decode("utf-8", "replace")
             if exc.code < 500 or attempt == 2:
@@ -275,9 +280,31 @@ def t4u_court_name(station: dict) -> str:
     return name[:1].upper() + name[1:]
 
 
+class SuspiciousResponse(RuntimeError):
+    """Сервер відповів 200, але дані неправдоподібні (наприклад, усе зайнято на місяць уперед)."""
+
+
+def write_diag(source: str, reason: str, meta: dict, now: datetime) -> None:
+    """Зберігає відповідь сервера для розбору; лишаємо останні 30 записів."""
+    DATA.mkdir(parents=True, exist_ok=True)
+    path = DATA / "diag.jsonl"
+    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    lines.append(json.dumps({"ts": now.isoformat(), "source": source, "reason": reason, **meta},
+                            ensure_ascii=False))
+    path.write_text("\n".join(lines[-30:]) + "\n", encoding="utf-8")
+
+
 def collect_tenis4u(src: dict, cfg: dict, tz: ZoneInfo, now: datetime) -> dict:
     api = src.get("api_base", "https://api.tenis4u.pl").rstrip("/")
-    occ = http_json(f"{api}/occupancy/{src['court_id']}", {"X-Tenis-User-Agent": src["client_header"]})
+    meta: dict = {}
+    occ = http_json(f"{api}/occupancy/{src['court_id']}", {"X-Tenis-User-Agent": src["client_header"]}, meta)
+    stations = [s for s in occ.get("stations", []) if not src.get("station_icon") or s.get("icon") == src["station_icon"]]
+    total_days = sum(len(s.get("days") or []) for s in stations)
+    total_free = sum(len(d.get("free_hours") or []) for s in stations for d in s.get("days") or [])
+    if not total_days or not total_free:
+        reason = f"stations={len(stations)} days={total_days} free_hours={total_free}"
+        write_diag(src["short"], reason, meta, now)
+        raise SuspiciousResponse(f"неправдоподібна відповідь: {reason}")
     step = cfg["slot_minutes"]
     # клуб без бронювання з пів години: рахуємо лише цілі години (обидві половини вільні)
     full_hours = src.get("full_hours_only") or not (occ.get("court_data") or {}).get("allow_half_hour", True)
@@ -418,35 +445,56 @@ def main() -> int:
     prev_free: dict[str, str] = state.get("free", {})
     prev_windows: dict[str, list[str]] = state.get("windows", {})
     seen_sources = set(state.get("sources_seen", []))
-    errors: dict[str, int] = state.get("errors", {}) if isinstance(state.get("errors"), dict) else {}
+    src_meta: dict[str, dict] = state.get("src_meta", {})
+    now_ep = int(time.time())
+    hot = (now.hour == 23 and now.minute >= 57) or (now.hour == 0 and now.minute < 10)
 
     results: dict[str, dict] = {}
     failed: list[str] = []
+    skipped: list[str] = []
     for short, src in sources.items():
+        m = src_meta.setdefault(short, {})
+        # частота опитування клубу: окремо звичайна і біля опівночі; пауза після підозрілої відповіді
+        interval = src.get("hot_interval_seconds", 0) if hot else src.get("min_interval_seconds", 0)
+        if now_ep < m.get("backoff_until", 0) or now_ep - m.get("last_fetch", 0) < interval - 10:
+            skipped.append(short)
+            continue
+        m["last_fetch"] = now_ep
         try:
             results[short] = COLLECTORS[src["type"]](src, cfg, tz, now)
-            errors[short] = 0
+            if m.get("fail_since"):
+                log(f"{short}: знову працює (збій тривав {(now_ep - m['fail_since']) // 60} хв)")
+            for k in ("fail_since", "alerted", "backoff_sec", "backoff_until"):
+                m.pop(k, None)
         except Exception as exc:  # noqa: BLE001 - мережа/API: не валимо весь запуск
             log(f"ПОМИЛКА {short}: {type(exc).__name__}: {exc}")
             failed.append(short)
-            errors[short] = errors.get(short, 0) + 1
-            if errors[short] == ERROR_ALERT_AFTER:
-                hint = " Можливо, tenis4u оновив версію застосунку (client_header у config.json)." \
-                    if src["type"] == "tenis4u" else ""
-                send_telegram(f"⚠️ Падел-монітор: {short} — {ERROR_ALERT_AFTER} невдалих запусків поспіль "
-                              f"({type(exc).__name__}).{hint}")
+            m.setdefault("fail_since", now_ep)
+            if isinstance(exc, SuspiciousResponse):
+                m["backoff_sec"] = min(max(m.get("backoff_sec", 0) * 2, 600), 3600)
+                m["backoff_until"] = now_ep + m["backoff_sec"]
+                log(f"{short}: пауза {m['backoff_sec'] // 60} хв")
+            if now_ep - m["fail_since"] >= ERROR_ALERT_MINUTES * 60 and not m.get("alerted"):
+                m["alerted"] = True
+                hint = ""
+                if src["type"] == "tenis4u":
+                    hint = (" Схоже, tenis4u обмежує запити (порожні дані)." if isinstance(exc, SuspiciousResponse)
+                            else " Можливо, tenis4u оновив версію застосунку (client_header у config.json).")
+                send_telegram(f"⚠️ Падел-монітор: {short} не дає даних уже {ERROR_ALERT_MINUTES} хв "
+                              f"({type(exc).__name__}).{hint} Слоти цього клубу зараз не відстежуються.")
 
     if not results:
-        state["errors"] = errors
+        state["src_meta"] = src_meta
         save_state(state)
-        append_csv(RUNS_FILE, RUN_FIELDS, [{"ts": ts, "gap_min": gap, "events": "error", "failed": " ".join(failed)}])
+        if failed:
+            append_csv(RUNS_FILE, RUN_FIELDS, [{"ts": ts, "gap_min": gap, "events": "error", "failed": " ".join(failed)}])
         return 0
 
-    # клуби, які зараз не відповіли, лишаємо в попередньому стані (щоб не було хибних "taken")
+    # клуби, які зараз не відповіли або пропущені, лишаємо в попередньому стані (щоб не було хибних "taken")
     free_now: set[str] = set()
     for res in results.values():
         free_now |= res["free"]
-    free_now |= {k for k in prev_free if source_of(k) in failed}
+    free_now |= {k for k in prev_free if source_of(k) in failed or source_of(k) in skipped}
     windows = {s: w for s, w in prev_windows.items() if s in sources}
     windows.update({s: r["window"] for s, r in results.items()})
 
@@ -498,7 +546,7 @@ def main() -> int:
     }])
     newly_seen = [s for s in results if s not in seen_sources]
     save_state({
-        "last_run": ts, "windows": windows, "free": new_free, "errors": errors,
+        "last_run": ts, "windows": windows, "free": new_free, "src_meta": src_meta,
         "sources_seen": sorted(seen_sources | set(results)),
     })
 

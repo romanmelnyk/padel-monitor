@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # щоб запуск міг сам стартувати наступний
 
 concurrency:
   group: padel-monitor
@@ -85,3 +86,11 @@ jobs:
         with:
           path: data/state.json
           key: state-${{ github.run_id }}
+
+      # розклад GitHub ненадійний (вночі була пауза 73 хв), тож наступний запуск ставимо в чергу самі.
+      # Не спрацьовує, якщо запуск скасували вручну.
+      - name: Queue next run
+        if: success() || failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run monitor.yml --ref main || echo "could not queue next run"
