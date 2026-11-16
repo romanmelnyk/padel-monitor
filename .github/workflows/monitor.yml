@@ -17,8 +17,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  POLL_SECONDS: "120"       # звичайний інтервал між перевірками
-  MIDNIGHT_POLL_SECONDS: "20"  # інтервал біля опівночі (23:57-00:10 за Варшавою), коли відкриваються нові дні
+  POLL_SECONDS: "600"       # звичайний інтервал між перевірками (10 хв)
+  MIDNIGHT_POLL_SECONDS: "20"  # інтервал з 23:58 до 00:06 за Варшавою, коли відкриваються нові дні
   RUN_MINUTES: "300"        # скільки працює один запуск; біля опівночі подовжується, щоб не було паузи
   COMMIT_EVERY_SECONDS: "600"  # комітити журнали раз на ~10 хв
 
@@ -63,8 +63,14 @@ jobs:
           wmin() { local hm; hm=$(TZ=Europe/Warsaw date +%H%M); echo $(( 10#${hm:0:2} * 60 + 10#${hm:2:2} )); }
           # 23:45-00:20: не завершуємо запуск (передача наступному = пауза ~1-2 хв)
           near_midnight() { local m; m=$(wmin); [ "$m" -ge 1425 ] || [ "$m" -lt 20 ]; }
-          # 23:57-00:10: часті перевірки
-          hot() { local m; m=$(wmin); [ "$m" -ge 1437 ] || [ "$m" -lt 10 ]; }
+          # 23:58-00:06: часті перевірки
+          hot() { local m; m=$(wmin); [ "$m" -ge 1438 ] || [ "$m" -lt 6 ]; }
+          # секунд до 23:58 за Варшавою (щоб не проспати початок частих перевірок)
+          to_hot() {
+            local hms s d; hms=$(TZ=Europe/Warsaw date +%H%M%S)
+            s=$(( 10#${hms:0:2} * 3600 + 10#${hms:2:2} * 60 + 10#${hms:4:2} ))
+            d=$(( 1438 * 60 - s )); [ "$d" -lt 0 ] && d=$(( d + 86400 )); echo "$d"
+          }
 
           end=$(( $(date +%s) + RUN_MINUTES * 60 ))
           last_commit=$(date +%s)
@@ -76,6 +82,8 @@ jobs:
             fi
             if hot; then interval=$MIDNIGHT_POLL_SECONDS; else interval=$POLL_SECONDS; fi
             sleep_for=$(( interval - ($(date +%s) - started) ))
+            th=$(to_hot)
+            if [ "$th" -gt 0 ] && [ "$th" -lt "$sleep_for" ]; then sleep_for=$th; fi
             if [ "$sleep_for" -gt 0 ]; then sleep "$sleep_for"; fi
           done
           commit_data
