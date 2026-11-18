@@ -3814,3 +3814,13 @@ ts,slot_date,slot_time,court,event,lead_min,free_min
 2026-11-18T12:31:00+01:00,2026-11-18,22:30,PadelHouse · Padel 4 Bozza,taken,599,1170
 2026-11-18T12:31:00+01:00,2026-11-21,11:00,Fame · Padel hala,taken,4229,60
 2026-11-18T12:31:00+01:00,2026-11-21,11:30,Fame · Padel hala,taken,4259,60
+2026-11-18T13:01:00+01:00,2026-11-19,17:00,Błonia · Padel 1,freed,1679,
+2026-11-18T13:01:00+01:00,2026-11-19,17:30,Błonia · Padel 1,freed,1709,
+2026-11-18T13:01:00+01:00,2026-11-19,18:00,Błonia · Padel 1,freed,1739,
+2026-11-18T13:01:00+01:00,2026-11-19,18:30,Błonia · Padel 1,freed,1769,
+2026-11-18T13:01:00+01:00,2026-11-18,13:00,PadelHouse · Padel 1 Noho,expired,0,2872
+2026-11-18T13:01:00+01:00,2026-11-18,13:00,PadelHouse · Padel 2 Oshee,expired,0,1200
+2026-11-18T13:01:00+01:00,2026-11-18,13:00,PadelHouse · Padel 3,expired,0,1230
+2026-11-18T13:01:00+01:00,2026-11-18,13:30,PadelHouse · Padel 1 Noho,taken,29,2872
+2026-11-18T13:01:00+01:00,2026-11-18,13:30,PadelHouse · Padel 2 Oshee,taken,29,1200
+2026-11-18T13:01:00+01:00,2026-11-18,13:30,PadelHouse · Padel 3,taken,29,1230
