@@ -48,8 +48,8 @@ def get_token(timeout_s: int = 90) -> tuple[str, int]:
 
             def page_has_captcha() -> bool:
                 """Перевірка «я не робот» реально показана (а не просто підключений скрипт)."""
-                sel = ("iframe[src*=recaptcha], iframe[src*=hcaptcha], iframe[src*=arkose], "
-                       "iframe[src*=challenges.cloudflare], input[name=captcha]")
+                sel = ("iframe[src*='recaptcha'], iframe[src*='hcaptcha'], iframe[src*='arkose'], "
+                       "iframe[src*='challenges.cloudflare'], input[name='captcha']")
                 loc = page.locator(sel)
                 return any(loc.nth(i).is_visible() for i in range(loc.count()))
 
