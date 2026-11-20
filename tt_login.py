@@ -47,9 +47,11 @@ def get_token(timeout_s: int = 90) -> tuple[str, int]:
             page.wait_for_url("**auth0.com/**", timeout=30000)
 
             def page_has_captcha() -> bool:
-                html = page.content().lower()
-                return "captcha" in html and ("g-recaptcha" in html or "hcaptcha" in html or "arkose" in html
-                                              or 'name="captcha"' in html)
+                """Перевірка «я не робот» реально показана (а не просто підключений скрипт)."""
+                sel = ("iframe[src*=recaptcha], iframe[src*=hcaptcha], iframe[src*=arkose], "
+                       "iframe[src*=challenges.cloudflare], input[name=captcha]")
+                loc = page.locator(sel)
+                return any(loc.nth(i).is_visible() for i in range(loc.count()))
 
             # Universal Login: email і пароль на одній сторінці або по черзі
             email = page.locator("input[name=username], input[name=email], input[type=email]").first
@@ -60,8 +62,7 @@ def get_token(timeout_s: int = 90) -> tuple[str, int]:
                 page.locator("button[type=submit]").first.click()
                 pwd.wait_for(timeout=20000)
             pwd.fill(pw)
-            if page_has_captcha():
-                raise LoginError("Auth0 показав перевірку «я не робот»")
+            captcha_before = page_has_captcha()
             page.locator("button[type=submit], button[name=action]").first.click()
 
             # чекаємо повернення в застосунок і токена в localStorage
@@ -76,14 +77,14 @@ def get_token(timeout_s: int = 90) -> tuple[str, int]:
                         if token:
                             return token, int(data.get("expiresAt") or 0)
                 elif "auth0.com" in page.url:
-                    if page_has_captcha():
-                        raise LoginError("Auth0 показав перевірку «я не робот»")
                     err = page.locator("[id*=error], .ulp-input-error-message, .ulp-error-info, [role=alert]")
                     if err.count() and err.first.is_visible():
                         msg = err.first.inner_text().strip()[:200]
                         if msg:
                             raise LoginError(f"Auth0: {msg}")
                 page.wait_for_timeout(1000)
+            if "auth0.com" in page.url and (captcha_before or page_has_captcha()):
+                raise LoginError("Auth0 вимагає пройти перевірку «я не робот»")
             raise LoginError(f"не дочекався входу (сторінка: {page.url.split('?')[0]})")
         except PWTimeout as exc:
             raise LoginError(f"сторінка входу не відповіла: {str(exc).splitlines()[0][:150]}") from None
