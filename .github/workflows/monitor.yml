@@ -44,6 +44,8 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TENIS4U_LOGIN: ${{ secrets.TENIS4U_LOGIN }}
+          TENIS4U_PASSWORD: ${{ secrets.TENIS4U_PASSWORD }}
         run: |
           git config user.name "padel-monitor"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -80,7 +82,12 @@ jobs:
             sleep_for=$(( POLL_SECONDS - ($(date +%s) - started) ))
             tm=$(to_midnight)
             if [ "$tm" -lt "$sleep_for" ]; then sleep_for=$tm; fi
-            if [ "$sleep_for" -gt 0 ]; then sleep "$sleep_for"; fi
+            if [ "$sleep_for" -gt 0 ]; then
+              # між перевірками слухаємо кнопки Telegram (Забронювати / Пропустити / Скасувати)
+              wake=$(( $(date +%s) + sleep_for ))
+              timeout $(( sleep_for + 120 )) python booker.py poll "$sleep_for" || echo "poll failed"
+              rest=$(( wake - $(date +%s) )); if [ "$rest" -gt 0 ]; then sleep "$rest"; fi
+            fi
           done
           commit_data
 

@@ -46,5 +46,14 @@
     "to": "23:00",
     "min_duration_minutes": 90,
     "on_window_open": true
+  },
+  "booking": {
+    "enabled": true,
+    "sources": ["Fame", "PadelHouse"],
+    "auto_min_lead_hours": 30,
+    "cancel_limit_hours": 24,
+    "prefer_minutes": 120,
+    "min_minutes": 90,
+    "max_active_auto": 3
   }
 }

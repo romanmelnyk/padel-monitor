@@ -312,6 +312,7 @@ def collect_tenis4u(src: dict, cfg: dict, tz: ZoneInfo, now: datetime) -> dict:
     last_day = now.date() + timedelta(days=src["days_ahead"])
     free: set[str] = set()
     window: set[str] = set()
+    court_ids: dict[str, int] = {}
     n_courts = n_blockades = 0
 
     excluded = set(src.get("exclude_station_ids", []))
@@ -322,6 +323,7 @@ def collect_tenis4u(src: dict, cfg: dict, tz: ZoneInfo, now: datetime) -> dict:
             continue
         n_courts += 1
         label = court_label(src, t4u_court_name(st))
+        court_ids[label] = st.get("id")
         for day in st.get("days", []):
             iso = str(day.get("date", "")).replace("/", "-")[:10]
             try:
@@ -348,7 +350,7 @@ def collect_tenis4u(src: dict, cfg: dict, tz: ZoneInfo, now: datetime) -> dict:
     if not n_courts:
         raise RuntimeError("не знайдено кортів (stations) потрібного типу")
     return {"free": free, "window": sorted(window), "courts": n_courts,
-            "bookings": "", "excludes": n_blockades}
+            "bookings": "", "excludes": n_blockades, "court_ids": court_ids}
 
 
 COLLECTORS = {"twojtenis": collect_twojtenis, "tenis4u": collect_tenis4u}
@@ -545,10 +547,24 @@ def main() -> int:
         "blocks_target": len(blocks), "events": len(events), "failed": " ".join(failed),
     }])
     newly_seen = [s for s in results if s not in seen_sources]
-    save_state({
+    court_ids = dict(state.get("court_ids", {}))
+    for r in results.values():
+        court_ids.update(r.get("court_ids") or {})
+    new_state = {
         "last_run": ts, "windows": windows, "free": new_free, "src_meta": src_meta,
-        "sources_seen": sorted(seen_sources | set(results)),
-    })
+        "sources_seen": sorted(seen_sources | set(results)), "court_ids": court_ids,
+        "booking": state.get("booking", {}), "tg_offset": state.get("tg_offset", 0),
+    }
+    # автобронювання: бронює / пропонує і повертає дні, про які звичайне сповіщення не потрібне
+    quiet_days: set[str] = set()
+    try:
+        import booker  # тут, а не вгорі: помилка в booker.py не має зупиняти моніторинг
+        quiet_days = booker.process(blocks, cfg, new_state, now, tz, sources, court_ids)
+    except Exception as exc:  # noqa: BLE001 - збій бронювання не має ламати монітор
+        log(f"booker: {type(exc).__name__}: {exc}")
+    save_state(new_state)
+    booking_srcs = set((cfg.get("booking") or {}).get("sources", [])) if (cfg.get("booking") or {}).get("enabled") else set()
+    blocks = [b for b in blocks if not (b["court"].split(SEP, 1)[0] in booking_srcs and b["day"] in quiet_days)]
 
     counts: dict[str, int] = {}
     for e in events:

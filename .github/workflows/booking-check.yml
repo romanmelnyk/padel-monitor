@@ -1,0 +1,32 @@
+name: booking-check
+
+# Перевірка автобронювання без бронювання:
+#  - після кожної зміни коду: синтаксис і логіка на вигаданих даних (selftest);
+#  - вручну (Run workflow): ще й вхід у tenis4u з вашими секретами і список днів, де у вас уже є бронь.
+on:
+  push:
+    paths: ["booker.py", "collector.py", "config.json", ".github/workflows/booking-check.yml"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Syntax
+        run: python -m py_compile collector.py booker.py analyze.py
+      - name: Selftest
+        run: python booker.py selftest
+      - name: Login check
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TENIS4U_LOGIN: ${{ secrets.TENIS4U_LOGIN }}
+          TENIS4U_PASSWORD: ${{ secrets.TENIS4U_PASSWORD }}
+        run: python booker.py check
