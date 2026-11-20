@@ -528,9 +528,6 @@ def check() -> int:
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     rc = 0
     for src in cfg["sources"]:
-        if src.get("type") == "twojtenis" and os.environ.get("TWOJTENIS_LOGIN"):
-            rc |= check_twojtenis(src)
-    for src in cfg["sources"]:
         if src.get("type") != "tenis4u" or src["short"] not in (cfg.get("booking") or {}).get("sources", []):
             continue
         client = Tenis4u(src)

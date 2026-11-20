@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Syntax
-        run: python -m py_compile collector.py booker.py analyze.py
+        run: python -m py_compile collector.py booker.py analyze.py tt_login.py
       - name: Selftest
         run: python booker.py selftest
       - name: Login check
@@ -32,3 +32,12 @@ jobs:
           TWOJTENIS_LOGIN: ${{ secrets.TWOJTENIS_LOGIN }}
           TWOJTENIS_PASSWORD: ${{ secrets.TWOJTENIS_PASSWORD }}
         run: python booker.py check
+      - name: Błonia browser login check
+        if: always() && github.event_name == 'workflow_dispatch'
+        env:
+          TWOJTENIS_LOGIN: ${{ secrets.TWOJTENIS_LOGIN }}
+          TWOJTENIS_PASSWORD: ${{ secrets.TWOJTENIS_PASSWORD }}
+        run: |
+          pip install -q playwright
+          python -m playwright install --with-deps chromium > /dev/null
+          python tt_login.py check
