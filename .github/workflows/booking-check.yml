@@ -29,4 +29,6 @@ jobs:
         env:
           TENIS4U_LOGIN: ${{ secrets.TENIS4U_LOGIN }}
           TENIS4U_PASSWORD: ${{ secrets.TENIS4U_PASSWORD }}
+          TWOJTENIS_LOGIN: ${{ secrets.TWOJTENIS_LOGIN }}
+          TWOJTENIS_PASSWORD: ${{ secrets.TWOJTENIS_PASSWORD }}
         run: python booker.py check

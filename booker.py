@@ -467,9 +467,69 @@ def poll(seconds: int) -> None:
         save_state(state)
 
 
+TT_AUTH = {"domain": "https://twojtenis.eu.auth0.com", "client_id": "86BsGMVf8imqTkuKVkxeW2FalNALsO4y",
+           "audience": "https://api.twojetenis.pl", "realm": "Username-Password-Authentication"}
+
+
+def twojtenis_login() -> str:
+    """Вхід у twojtenis.pl (Auth0) логіном і паролем. Повертає access_token або кидає T4UError."""
+    user = os.environ.get("TWOJTENIS_LOGIN", "").strip()
+    pw = os.environ.get("TWOJTENIS_PASSWORD", "")
+    if not user or not pw:
+        raise T4UError("немає секретів TWOJTENIS_LOGIN / TWOJTENIS_PASSWORD")
+    body = {"grant_type": "http://auth0.com/oauth/grant-type/password-realm", "realm": TT_AUTH["realm"],
+            "client_id": TT_AUTH["client_id"], "audience": TT_AUTH["audience"],
+            "scope": "openid profile email", "username": user, "password": pw}
+    req = urllib.request.Request(TT_AUTH["domain"] + "/oauth/token", data=json.dumps(body).encode("utf-8"),
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            res = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", "replace")
+        try:
+            err = json.loads(raw)
+            raw = f"{err.get('error')}: {err.get('error_description')}"
+        except json.JSONDecodeError:
+            raw = raw[:200]
+        raise T4UError(f"Auth0 HTTP {exc.code}: {raw}") from None
+    if not res.get("access_token"):
+        raise T4UError("Auth0: немає access_token")
+    return res["access_token"]
+
+
+def check_twojtenis(src: dict) -> int:
+    try:
+        token = twojtenis_login()
+    except T4UError as exc:
+        print(f"{src['short']}: ПОМИЛКА входу: {exc}")
+        return 1
+    api = src["api_base"].rstrip("/")
+    try:
+        req = urllib.request.Request(f"{api}/Clubs/{src['club_id']}/technical-group",
+                                     headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            service = json.loads(resp.read().decode("utf-8"))["serviceUrl"].rstrip("/")
+        today = date.today()
+        q = urllib.parse.urlencode({"from": today.isoformat(), "to": (today + timedelta(days=6)).isoformat()})
+        req = urllib.request.Request(f"{service}/api/v1/Clubs/{src['club_id']}/bookings/private?{q}",
+                                     headers={"Accept": "application/json", "Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            items = json.loads(resp.read().decode("utf-8"))
+        print(f"{src['short']}: вхід OK, API приймає токен (записів у розкладі: {len(items)})")
+        return 0
+    except urllib.error.HTTPError as exc:
+        print(f"{src['short']}: вхід OK, але API відповів HTTP {exc.code}: {exc.read()[:200]!r}")
+        return 1
+
+
 def check() -> int:
     """Ручна перевірка: вхід, ваші броні, ціна найближчого вільного слоту. Нічого не бронює."""
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+    rc = 0
+    for src in cfg["sources"]:
+        if src.get("type") == "twojtenis" and os.environ.get("TWOJTENIS_LOGIN"):
+            rc |= check_twojtenis(src)
     for src in cfg["sources"]:
         if src.get("type") != "tenis4u" or src["short"] not in (cfg.get("booking") or {}).get("sources", []):
             continue
@@ -480,7 +540,7 @@ def check() -> int:
         except T4UError as exc:
             print(f"{src['short']}: ПОМИЛКА {exc}")
             return 1
-    return 0
+    return rc
 
 
 def selftest() -> int:
