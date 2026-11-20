@@ -250,7 +250,8 @@ def collect_twojtenis(src: dict, cfg: dict, tz: ZoneInfo, now: datetime) -> dict
                 t += step
 
     return {"free": free, "window": [d.isoformat() for d in days], "courts": len(courts),
-            "bookings": n_bookings, "excludes": n_excludes}
+            "bookings": n_bookings, "excludes": n_excludes,
+            "court_ids": {court_label(src, c["name"]): c["id"] for c in courts}}
 
 
 # ---------------------------------------------------------------- tenis4u.pl

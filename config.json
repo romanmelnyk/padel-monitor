@@ -49,7 +49,7 @@
   },
   "booking": {
     "enabled": true,
-    "sources": ["Fame", "PadelHouse"],
+    "sources": ["Fame", "PadelHouse", "Błonia"],
     "auto_min_lead_hours": 30,
     "cancel_limit_hours": 24,
     "prefer_minutes": 120,

@@ -44,7 +44,7 @@
 **Actions** → (якщо треба, увімкнути workflows) → **padel-monitor** → **Run workflow**.
 За хвилину в Telegram має прийти «✅ Падел-монітор запущено…» зі списком вільних зараз слотів. Далі все працює за розкладом.
 
-## Автобронювання (Fame, Padel House)
+## Автобронювання (Fame, Padel House, Błonia)
 
 `booker.py`, налаштування в `config.json` → `booking`:
 - у будні 18:00–23:00 бот бронює **один корт на день**: найраніший вільний блок, 2 год (якщо блок коротший, то 1.5 год; у Padel House лише цілі години);
@@ -54,7 +54,8 @@
 - не більше `max_active_auto` (3) автоброней одночасно, далі тільки пропозиції;
 - оплата в клубі (тариф з оплатою CASH).
 
-Потрібні секрети `TENIS4U_LOGIN` і `TENIS4U_PASSWORD` (Settings → Secrets and variables → Actions). Перевірити вхід без бронювання: Actions → **booking-check** → Run workflow.
+Потрібні секрети `TENIS4U_LOGIN` і `TENIS4U_PASSWORD` (Fame, Padel House), `TWOJTENIS_LOGIN` і `TWOJTENIS_PASSWORD` (Błonia) у Settings → Secrets and variables → Actions.
+twojtenis не дозволяє входити паролем напряму, тож бот входить через невидимий браузер (`tt_login.py`, Playwright). Якщо сайт покаже перевірку «я не робот», бронювання в Błonia не вдасться і прийде повідомлення з причиною. Час, до якого можна скасувати бронь у Błonia, бот бере з відповіді клубу. Перевірити вхід без бронювання: Actions → **booking-check** → Run workflow.
 Кнопки працюють, поки йде запуск монітора (майже завжди); відповідь на натискання приходить за кілька секунд.
 Вимкнути: `"enabled": false` у `booking`.
 

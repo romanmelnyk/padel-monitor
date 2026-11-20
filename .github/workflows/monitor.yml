@@ -40,12 +40,21 @@ jobs:
           key: state-${{ github.run_id }}
           restore-keys: state-
 
+      # невидимий браузер для входу в twojtenis (Błonia); якщо не встановиться, моніторинг працює далі
+      - name: Install browser for twojtenis login
+        continue-on-error: true
+        run: |
+          pip install -q playwright
+          python -m playwright install --with-deps chromium > /dev/null
+
       - name: Poll loop
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TENIS4U_LOGIN: ${{ secrets.TENIS4U_LOGIN }}
           TENIS4U_PASSWORD: ${{ secrets.TENIS4U_PASSWORD }}
+          TWOJTENIS_LOGIN: ${{ secrets.TWOJTENIS_LOGIN }}
+          TWOJTENIS_PASSWORD: ${{ secrets.TWOJTENIS_PASSWORD }}
         run: |
           git config user.name "padel-monitor"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

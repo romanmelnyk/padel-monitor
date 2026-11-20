@@ -205,6 +205,106 @@ class Tenis4u:
         self._req("DELETE", f"/api/v3/reservations/{uuid}")
 
 
+# ---------------------------------------------------------------- twojtenis.pl API
+
+class Twojtenis:
+    """Бронювання в клубі на twojtenis.pl. Вхід через невидимий браузер (tt_login.py)."""
+
+    def __init__(self, src: dict):
+        self.src = src
+        self.api = src["api_base"].rstrip("/")            # .../api/v1
+        self.club = src["club_id"]
+        self.token: str | None = None
+        self.svc: str | None = None                        # https://...tech-krakow...
+
+    def _req(self, method: str, url: str, body=None):
+        headers = {"Accept": "application/json", "User-Agent": "padel-slot-monitor/1.0"}
+        data = None
+        if body is not None:
+            data = json.dumps(body).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        req = urllib.request.Request(url, data=data, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                raw = resp.read().decode("utf-8")
+                return json.loads(raw) if raw.strip() else {}
+        except urllib.error.HTTPError as exc:
+            raw = exc.read().decode("utf-8", "replace")
+            try:
+                err = json.loads(raw)
+                msg = err.get("error") or err.get("title") or err.get("message") or raw[:200]
+            except json.JSONDecodeError:
+                msg = raw[:200]
+            path = urllib.parse.urlparse(url).path
+            raise T4UError(f"HTTP {exc.code} {method} {path}: {msg}") from None
+
+    def login(self) -> None:
+        import tt_login
+        try:
+            self.token, _ = tt_login.get_token()
+        except tt_login.LoginError as exc:
+            raise T4UError(f"вхід у twojtenis: {exc}") from None
+        self.svc = self._req("GET", f"{self.api}/Clubs/{self.club}/technical-group")["serviceUrl"].rstrip("/")
+
+    def my_days(self) -> set[str]:
+        today = date.today()
+        q = urllib.parse.urlencode({"from": today.isoformat(), "to": (today + timedelta(days=40)).isoformat()})
+        items = self._req("GET", f"{self.svc}/api/v1/bookings/my?{q}") or []
+        return {str(b.get("date"))[:10] for b in items if isinstance(b, dict) and not b.get("isDeleted")}
+
+    def book(self, location_id: str, location_name: str, day: str, start: str, end: str) -> dict:
+        me = self._req("GET", f"{self.api}/Players/me")
+        try:
+            prof = self._req("GET", f"{self.api}/Clubs/{self.club}/players/{me['id']}")
+        except T4UError as exc:
+            if "HTTP 404" not in str(exc):
+                raise
+            prof = self._req("POST", f"{self.api}/Clubs/{self.club}/players/{me['id']}")
+        if prof.get("isBlocked"):
+            raise T4UError("ваш профіль у клубі заблоковано")
+        calc = self._req("POST", f"{self.api}/Clubs/{self.club}/actions/calculate-price", {
+            "clubId": self.club, "locationId": location_id, "start": start, "end": end, "days": [day],
+            "multiSportCardsUsed": 0, "medicoverCardsUsed": 0, "playerId": prof["id"],
+            "isSmartTennisMatch": False, "isOnlinePayment": False})
+        price = (calc.get("prices") or [{}])[0]
+        if not price.get("checksum") or price.get("failed"):
+            raise T4UError(f"клуб не дав ціну на цей час: {json.dumps(calc, ensure_ascii=False)[:200]}")
+        due = datetime.fromisoformat(f"{day}T{start}").replace(tzinfo=ZoneInfo("Europe/Warsaw"))
+        body = {
+            "requests": [{
+                "payment": {"amountToPay": price["price"], "discountType": "absolute", "discountValue": 0,
+                            "paidAmount": 0, "initialAmount": price["price"],
+                            "paymentDue": due.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                            "status": "awaiting", "isOnline": False},
+                "locationId": location_id, "startHour": start, "endHour": end, "date": day,
+                "price": price["price"], "checksum": price["checksum"], "locationName": location_name,
+                "multiSportCardsUsed": price.get("multiSportCardsUsed", 0),
+                "medicoverCardsUsed": price.get("medicoverCardsUsed", 0),
+            }],
+            "description": "", "bookerId": prof["id"],
+            "bookerName": f"{prof.get('firstName', '')} {prof.get('lastName', '')}".strip(),
+            "bookerType": 0, "clubName": self.src.get("name", ""), "comment": "",
+            "bookerEmail": prof.get("email"), "bookerPhone": prof.get("phoneNumber"),
+            "source": 0, "isSmartTennisMatch": False, "isOnlinePayment": False, "webApp": True,
+        }
+        res = self._req("POST", f"{self.svc}/api/v1/Clubs/{self.club}/bookings", body)
+        first = res[0] if isinstance(res, list) and res else res if isinstance(res, dict) else {}
+        first["_cost"] = price["price"]
+        return first
+
+    def cancel(self, booking_id: str) -> None:
+        self._req("POST", f"{self.svc}/api/v1/Bookings/my/{booking_id}/cancel", {})
+
+
+def client_for(src: dict):
+    return Twojtenis(src) if src.get("type") == "twojtenis" else Tenis4u(src)
+
+
+CRED_ENV = {"tenis4u": "TENIS4U_LOGIN", "twojtenis": "TWOJTENIS_LOGIN"}
+
+
 # ---------------------------------------------------------------- decisions
 
 def bstate(state: dict) -> dict:
@@ -224,6 +324,10 @@ def next_id(b: dict) -> str:
 
 def active_bookings(b: dict, now: datetime) -> list[dict]:
     return [x for x in b["bookings"] if x.get("status") == "active" and x["day"] >= now.date().isoformat()]
+
+
+def my_url(src: dict) -> str:
+    return src.get("booking_url", "") if src.get("type") == "twojtenis" else MY_RESERVATIONS_URL
 
 
 def plan_for_block(block: dict, bcfg: dict) -> tuple[int, int]:
@@ -254,12 +358,16 @@ def do_book(item: dict, sources: dict, court_ids: dict, tz: ZoneInfo) -> tuple[b
     end = datetime.fromisoformat(f"{item['day']}T{to_hm(item['end'] % (24 * 60))}").replace(tzinfo=tz)
     if item["end"] >= 24 * 60:
         end += timedelta(days=1)
-    client = Tenis4u(src)
+    client = client_for(src)
     try:
         client.login()
         if item["day"] in client.my_days():
-            return False, "на цей день у вас уже є бронь у tenis4u"
-        res = client.book(station, start, end)
+            return False, f"на цей день у вас уже є бронь у {src.get('name', item['src'])}"
+        if isinstance(client, Twojtenis):
+            res = client.book(station, item["court"].split(SEP, 1)[-1], item["day"],
+                              f"{to_hm(item['start'])}:00", f"{to_hm(item['end'] % (24 * 60))}:00")
+        else:
+            res = client.book(station, start, end)
     except T4UError as exc:
         return False, str(exc)
     uuid = res.get("public_uuid") or res.get("uuid") or res.get("id")
@@ -268,11 +376,26 @@ def do_book(item: dict, sources: dict, court_ids: dict, tz: ZoneInfo) -> tuple[b
     item["uuid"] = str(uuid)
     item["cost"] = res.get("_cost")
     item["status"] = "active"
+    if res.get("cancelUntil"):
+        item["cancel_until"] = str(res["cancelUntil"])
     extra = ""
     status = str(res.get("status") or "")
     if status and status.upper() not in ("CONFIRMED", "ACTIVE", "CREATED"):
-        extra = f"\nСтатус у tenis4u: {status} — перевірте в застосунку."
+        extra = f"\nСтатус бронювання: {status} — перевірте в застосунку."
     return True, extra
+
+
+def cancel_text(item: dict, tz: ZoneInfo, hours: int) -> str:
+    """«Скасувати безкоштовно можна до …» — з відповіді клубу (twojtenis) або за налаштуванням."""
+    dl = None
+    if item.get("cancel_until"):
+        try:
+            dl = datetime.fromisoformat(item["cancel_until"].replace("Z", "+00:00"))
+            dl = dl.replace(tzinfo=tz) if dl.tzinfo is None else dl.astimezone(tz)
+        except ValueError:
+            dl = None
+    dl = dl or cancel_deadline(item, tz, hours)
+    return f"Скасувати безкоштовно можна до {fmt_day(dl.date().isoformat())} {dl:%H:%M}."
 
 
 def process(blocks: list[dict], cfg: dict, state: dict, now: datetime, tz: ZoneInfo,
@@ -283,13 +406,16 @@ def process(blocks: list[dict], cfg: dict, state: dict, now: datetime, tz: ZoneI
     if not bcfg.get("enabled"):
         return set()
     b = bstate(state)
-    allowed = set(bcfg.get("sources", []))
-    if not os.environ.get("TENIS4U_LOGIN"):
-        if not b.get("warned_no_login"):
-            b["warned_no_login"] = True
-            tg_send("⚠️ Автобронювання увімкнене, але немає секретів TENIS4U_LOGIN / TENIS4U_PASSWORD у GitHub.")
+    allowed = set()
+    for short in bcfg.get("sources", []):
+        env = CRED_ENV.get((sources.get(short) or {}).get("type", ""), "")
+        if env and os.environ.get(env):
+            allowed.add(short)
+        elif env and not b.get(f"warned_{env}"):
+            b[f"warned_{env}"] = True
+            tg_send(f"⚠️ Автобронювання для {short} увімкнене, але немає секрету {env} у GitHub.")
+    if not allowed:
         return set()
-    b.pop("warned_no_login", None)
 
     today = now.date().isoformat()
     booked_days = {x["day"] for x in active_bookings(b, now)}
@@ -340,12 +466,11 @@ def process(blocks: list[dict], cfg: dict, state: dict, now: datetime, tz: ZoneI
             if ok:
                 b["bookings"].append(item)
                 quiet.add(day)
-                dl = cancel_deadline(item, tz, cancel_h)
                 cost = f"\nЦіна: {item['cost']:g} zł (оплата в клубі)" if item.get("cost") else ""
                 item["msg"] = tg_send(
                     f"✅ Забронював корт\n{describe(item, sources)}{cost}\n"
-                    f"Скасувати безкоштовно можна до {fmt_day(dl.date().isoformat())} {dl:%H:%M}.{extra}\n"
-                    f"{MY_RESERVATIONS_URL}",
+                    f"{cancel_text(item, tz, cancel_h)}{extra}\n"
+                    f"{my_url(sources[item['src']])}",
                     [[("❌ Скасувати бронь", f"c:{item['id']}")]])
             else:
                 b["failed"].append(item["key"])
@@ -401,7 +526,9 @@ def handle_callback(cq: dict, state: dict, cfg: dict, tz: ZoneInfo) -> None:
             o["status"] = "booked"
             b["bookings"].append(dict(o, status="active", msg=mid))
             cost = f"\nЦіна: {o['cost']:g} zł (оплата в клубі)" if o.get("cost") else ""
-            tg_edit(mid, f"✅ Заброньовано\n{describe(o, sources)}{cost}{extra}\n{MY_RESERVATIONS_URL}",
+            tg_edit(mid, f"✅ Заброньовано\n{describe(o, sources)}{cost}\n"
+                         f"{cancel_text(o, tz, (cfg.get('booking') or {}).get('cancel_limit_hours', 24))}"
+                         f"{extra}\n{my_url(sources[o['src']])}",
                     [[("❌ Скасувати бронь", f"c:{oid}")]])
         else:
             o["status"] = "failed"
@@ -414,12 +541,12 @@ def handle_callback(cq: dict, state: dict, cfg: dict, tz: ZoneInfo) -> None:
             tg_edit(mid, (msg.get("text") or "") + "\n\n(бронь не знайдено або вже скасовано)")
             return
         try:
-            client = Tenis4u(sources[x["src"]])
+            client = client_for(sources[x["src"]])
             client.login()
             client.cancel(x["uuid"])
         except T4UError as exc:
             tg_send(f"⚠️ Не вдалося скасувати бронь\n{describe(x, sources)}\nПричина: {exc}\n"
-                    f"Скасуйте в застосунку: {MY_RESERVATIONS_URL}")
+                    f"Скасуйте в застосунку: {my_url(sources[x['src']])}")
             return
         x["status"] = "cancelled"
         b["skipped_days"].append(x["day"])  # не бронювати цей день знову автоматично
@@ -467,76 +594,20 @@ def poll(seconds: int) -> None:
         save_state(state)
 
 
-TT_AUTH = {"domain": "https://twojtenis.eu.auth0.com", "client_id": "86BsGMVf8imqTkuKVkxeW2FalNALsO4y",
-           "audience": "https://api.twojetenis.pl", "realm": "Username-Password-Authentication"}
-
-
-def twojtenis_login() -> str:
-    """Вхід у twojtenis.pl (Auth0) логіном і паролем. Повертає access_token або кидає T4UError."""
-    user = os.environ.get("TWOJTENIS_LOGIN", "").strip()
-    pw = os.environ.get("TWOJTENIS_PASSWORD", "")
-    if not user or not pw:
-        raise T4UError("немає секретів TWOJTENIS_LOGIN / TWOJTENIS_PASSWORD")
-    body = {"grant_type": "http://auth0.com/oauth/grant-type/password-realm", "realm": TT_AUTH["realm"],
-            "client_id": TT_AUTH["client_id"], "audience": TT_AUTH["audience"],
-            "scope": "openid profile email", "username": user, "password": pw}
-    req = urllib.request.Request(TT_AUTH["domain"] + "/oauth/token", data=json.dumps(body).encode("utf-8"),
-                                 headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            res = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        raw = exc.read().decode("utf-8", "replace")
-        try:
-            err = json.loads(raw)
-            raw = f"{err.get('error')}: {err.get('error_description')}"
-        except json.JSONDecodeError:
-            raw = raw[:200]
-        raise T4UError(f"Auth0 HTTP {exc.code}: {raw}") from None
-    if not res.get("access_token"):
-        raise T4UError("Auth0: немає access_token")
-    return res["access_token"]
-
-
-def check_twojtenis(src: dict) -> int:
-    try:
-        token = twojtenis_login()
-    except T4UError as exc:
-        print(f"{src['short']}: ПОМИЛКА входу: {exc}")
-        return 1
-    api = src["api_base"].rstrip("/")
-    try:
-        req = urllib.request.Request(f"{api}/Clubs/{src['club_id']}/technical-group",
-                                     headers={"Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            service = json.loads(resp.read().decode("utf-8"))["serviceUrl"].rstrip("/")
-        today = date.today()
-        q = urllib.parse.urlencode({"from": today.isoformat(), "to": (today + timedelta(days=6)).isoformat()})
-        req = urllib.request.Request(f"{service}/api/v1/Clubs/{src['club_id']}/bookings/private?{q}",
-                                     headers={"Accept": "application/json", "Authorization": f"Bearer {token}"})
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            items = json.loads(resp.read().decode("utf-8"))
-        print(f"{src['short']}: вхід OK, API приймає токен (записів у розкладі: {len(items)})")
-        return 0
-    except urllib.error.HTTPError as exc:
-        print(f"{src['short']}: вхід OK, але API відповів HTTP {exc.code}: {exc.read()[:200]!r}")
-        return 1
-
-
 def check() -> int:
-    """Ручна перевірка: вхід, ваші броні, ціна найближчого вільного слоту. Нічого не бронює."""
+    """Ручна перевірка: вхід і дні з вашими бронями в кожному клубі. Нічого не бронює."""
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     rc = 0
     for src in cfg["sources"]:
-        if src.get("type") != "tenis4u" or src["short"] not in (cfg.get("booking") or {}).get("sources", []):
+        if src["short"] not in (cfg.get("booking") or {}).get("sources", []):
             continue
-        client = Tenis4u(src)
+        client = client_for(src)
         try:
             client.login()
             print(f"{src['short']}: вхід OK; дні з вашими бронями: {sorted(client.my_days()) or '-'}")
         except T4UError as exc:
             print(f"{src['short']}: ПОМИЛКА {exc}")
-            return 1
+            rc = 1
     return rc
 
 
@@ -557,6 +628,7 @@ def selftest() -> int:
 
     do_book, tg_send, tg_edit = fake_book, fake_send, lambda *a, **k: None
     os.environ.setdefault("TENIS4U_LOGIN", "test")
+    os.environ.setdefault("TWOJTENIS_LOGIN", "test")
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     tz = ZoneInfo(cfg["timezone"])
     now = datetime(2026, 11, 20, 12, 0, tzinfo=tz)  # пт
@@ -565,20 +637,21 @@ def selftest() -> int:
         {"day": "2026-11-21", "court": "Fame · Padel hala", "start": 18 * 60, "end": 20 * 60},     # 30 год -> авто
         {"day": "2026-11-21", "court": "PadelHouse · Padel 1", "start": 19 * 60, "end": 21 * 60},  # той самий день, пізніше
         {"day": "2026-11-20", "court": "Fame · Padel hala", "start": 20 * 60, "end": 21 * 60 + 30},  # 8 год -> питати
-        {"day": "2026-11-24", "court": "Błonia · Padel 1", "start": 18 * 60, "end": 20 * 60},      # не tenis4u
+        {"day": "2026-11-24", "court": "Błonia · Padel 1", "start": 18 * 60, "end": 20 * 60},      # twojtenis, авто
         {"day": "2026-11-25", "court": "PadelHouse · Padel 2", "start": 20 * 60, "end": 23 * 60},  # авто, 2 год
     ]
     state: dict = {}
     quiet = process(blocks, cfg, state, now, tz, sources, {})
-    assert [x["day"] for x in booked] == ["2026-11-21", "2026-11-25"], booked
+    assert [x["day"] for x in booked] == ["2026-11-21", "2026-11-24", "2026-11-25"], booked
     assert booked[0]["court"].startswith("Fame") and booked[0]["end"] - booked[0]["start"] == 120
-    assert booked[1]["start"] == 20 * 60 and booked[1]["end"] == 22 * 60
+    assert booked[1]["court"].startswith("Błonia")
+    assert booked[2]["start"] == 20 * 60 and booked[2]["end"] == 22 * 60
     assert list(state["booking"]["offers"].values())[0]["end"] == 21 * 60 + 30  # блок 1.5 год -> 1.5 год
-    assert quiet == {"2026-11-20", "2026-11-21", "2026-11-25"}, quiet
+    assert quiet == {"2026-11-20", "2026-11-21", "2026-11-24", "2026-11-25"}, quiet
     # повторний запуск нічого нового не робить
     n = len(sent)
     process(blocks, cfg, state, now, tz, sources, {})
-    assert len(sent) == n and len(booked) == 2
+    assert len(sent) == n and len(booked) == 3
     print("\n---\n".join(sent))
     print("selftest OK")
     return 0
