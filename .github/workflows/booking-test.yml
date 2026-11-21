@@ -1,0 +1,45 @@
+name: booking-test
+
+# Ручне тестове бронювання одного слоту (справжня бронь!). Лише запуск кнопкою Run workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Клуб (short з config.json)"
+        default: "Błonia"
+      court:
+        description: "Корт, напр. Padel 3"
+        default: "Padel 3"
+      day:
+        description: "Дата YYYY-MM-DD"
+        default: "2026-11-28"
+      start:
+        description: "Початок HH:MM"
+        default: "17:30"
+      end:
+        description: "Кінець HH:MM"
+        default: "19:00"
+
+permissions:
+  contents: read
+
+jobs:
+  book:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install browser for twojtenis login
+        run: |
+          pip install -q playwright
+          python -m playwright install --with-deps chromium > /dev/null
+      - name: Book
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TWOJTENIS_LOGIN: ${{ secrets.TWOJTENIS_LOGIN }}
+          TWOJTENIS_PASSWORD: ${{ secrets.TWOJTENIS_PASSWORD }}
+        run: python booker.py book "${{ inputs.source }}" "${{ inputs.court }}" "${{ inputs.day }}" "${{ inputs.start }}" "${{ inputs.end }}"

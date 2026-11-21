@@ -694,6 +694,28 @@ if __name__ == "__main__":
         sys.exit(check())
     elif cmd == "selftest":
         sys.exit(selftest())
+    elif cmd == "book":  # ручне тестове бронювання: book <short> "<корт>" YYYY-MM-DD HH:MM HH:MM
+        _cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+        _short, _court, _day, _st, _en = sys.argv[2:7]
+        _src = next(s for s in _cfg["sources"] if s["short"] == _short)
+        _c = client_for(_src)
+        try:
+            _c.login()
+            if isinstance(_c, Twojtenis):
+                _club = _c._req("GET", f"{_c.api}/Clubs/{_c.club}")
+                _loc = next(l for l in _club["locations"] if l["name"].strip().lower() == _court.strip().lower())
+                _res = _c.book(_loc["id"], _loc["name"], _day, f"{_st}:00", f"{_en}:00")
+            else:
+                raise T4UError("ручне тестове бронювання зроблене лише для twojtenis")
+        except T4UError as exc:
+            print(f"{_short}: ПОМИЛКА бронювання: {exc}")
+            tg_send(f"⚠️ Тестове бронювання не вдалося\n{_src['name']} · {_court}\n{fmt_day(_day)} {_st}–{_en}\nПричина: {exc}")
+            sys.exit(1)
+        _bid = _res.get("id")
+        print(f"{_short}: ЗАБРОНЬОВАНО id={_bid} ціна={_res.get('_cost')} cancelUntil={_res.get('cancelUntil')}")
+        _cu = f"\nСкасувати можна до: {_res.get('cancelUntil')}" if _res.get("cancelUntil") else ""
+        tg_send(f"✅ Тестова бронь\n{_src['name']} · {_court}\n{fmt_day(_day)} {_st}–{_en}\n"
+                f"Ціна: {_res.get('_cost')} zł (оплата в клубі){_cu}\n{my_url(_src)}")
     elif cmd == "probe":  # діагностика запиту бронювання twojtenis (дата в минулому, бронь не створюється)
         _cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
         _src = next(s for s in _cfg["sources"] if s.get("type") == "twojtenis")
