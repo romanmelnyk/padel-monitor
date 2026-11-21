@@ -9,16 +9,16 @@ on:
         default: "Błonia"
       court:
         description: "Корт, напр. Padel 3"
-        default: "Padel 3"
+        required: true
       day:
         description: "Дата YYYY-MM-DD"
-        default: "2026-11-28"
+        required: true
       start:
         description: "Початок HH:MM"
-        default: "17:30"
+        required: true
       end:
         description: "Кінець HH:MM"
-        default: "19:00"
+        required: true
 
 permissions:
   contents: read
