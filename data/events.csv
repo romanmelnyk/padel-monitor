@@ -5226,3 +5226,7 @@ ts,slot_date,slot_time,court,event,lead_min,free_min
 2026-11-21T11:01:00+01:00,2026-11-27,08:30,PadelHouse · Padel 3,taken,8489,7072
 2026-11-21T11:01:00+01:00,2026-11-27,18:00,Błonia · Padel 1,taken,9059,1170
 2026-11-21T11:01:00+01:00,2026-11-27,18:30,Błonia · Padel 1,taken,9089,1170
+2026-11-21T11:32:00+01:00,2026-11-22,15:00,PadelHouse · Padel 3,freed,1648,
+2026-11-21T11:32:00+01:00,2026-11-22,15:30,PadelHouse · Padel 3,freed,1678,
+2026-11-21T11:32:00+01:00,2026-11-22,16:00,PadelHouse · Padel 3,freed,1708,
+2026-11-21T11:32:00+01:00,2026-11-22,16:30,PadelHouse · Padel 3,freed,1738,
