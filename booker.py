@@ -313,7 +313,8 @@ class Twojtenis:
             }],
             "description": "", "bookerId": prof["id"],
             "bookerName": f"{prof.get('firstName', '')} {prof.get('lastName', '')}".strip(),
-            "bookerType": 0, "clubName": self.src.get("name", ""), "comment": "",
+            # "comment" не передаємо: сервер чекає там об'єкт коментаря, а застосунок без коментаря поле пропускає
+            "bookerType": 0, "clubName": self.src.get("name", ""),
             "bookerEmail": prof.get("email"), "bookerPhone": prof.get("phoneNumber"),
             "source": 0, "isSmartTennisMatch": False, "isOnlinePayment": False, "webApp": True,
         }
