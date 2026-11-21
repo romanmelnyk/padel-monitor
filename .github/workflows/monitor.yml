@@ -55,6 +55,9 @@ jobs:
           TENIS4U_PASSWORD: ${{ secrets.TENIS4U_PASSWORD }}
           TWOJTENIS_LOGIN: ${{ secrets.TWOJTENIS_LOGIN }}
           TWOJTENIS_PASSWORD: ${{ secrets.TWOJTENIS_PASSWORD }}
+          ICLOUD_USER: ${{ secrets.ICLOUD_USER }}
+          ICLOUD_APP_PASSWORD: ${{ secrets.ICLOUD_APP_PASSWORD }}
+          ICLOUD_CALENDAR: ${{ secrets.ICLOUD_CALENDAR }}
         run: |
           git config user.name "padel-monitor"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

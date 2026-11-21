@@ -129,7 +129,7 @@ def make_ics(item: dict, src: dict, tz: ZoneInfo, note: str = "") -> bytes:
     end = start + timedelta(minutes=item["end"] - item["start"])
     fmt = "%Y%m%dT%H%M%SZ"
     court = item["court"].split(SEP, 1)[-1]
-    uid = f"{item.get('uuid') or item.get('key') or item['day']}@padel-monitor"
+    uid = cal_uid(item)
     desc = "\n".join(x for x in (note, my_url(src)) if x)
     title = f"Падел · {src.get('name', item['src'])} · {court}"
     lines = [
@@ -148,9 +148,35 @@ def make_ics(item: dict, src: dict, tz: ZoneInfo, note: str = "") -> bytes:
     return "\r\n".join(lines).encode("utf-8")
 
 
+def cal_uid(item: dict) -> str:
+    return f"{item.get('uuid') or item.get('key') or item['day']}@padel-monitor"
+
+
 def send_calendar(item: dict, src: dict, tz: ZoneInfo, note: str = "") -> None:
+    """Додає бронь у календар iCloud (якщо є секрети ICLOUD_*), інакше надсилає файл .ics у Telegram."""
+    ics = make_ics(item, src, tz, note)
+    item["cal_uid"] = cal_uid(item)
+    try:
+        import icloud_cal
+        if icloud_cal.configured():
+            icloud_cal.put_event(item["cal_uid"], ics)
+            tg_send(f"📅 Додано в календар «{os.environ.get('ICLOUD_CALENDAR', '').strip()}»: "
+                    f"{fmt_day(item['day'])} {to_hm(item['start'])}–{to_hm(item['end'] % (24 * 60))}")
+            return
+    except Exception as exc:  # noqa: BLE001 - календар не має ламати бронювання
+        tg_send(f"⚠️ Не вдалося додати бронь у календар iCloud: {exc}")
     fname = f"padel-{item['day']}-{to_hm(item['start']).replace(':', '')}.ics"
-    tg_send_file(fname, make_ics(item, src, tz, note), "📅 Натисніть, щоб додати в календар")
+    tg_send_file(fname, ics, "📅 Файл події для календаря")
+
+
+def remove_calendar(item: dict) -> None:
+    try:
+        import icloud_cal
+        if icloud_cal.configured():
+            icloud_cal.delete_event(item.get("cal_uid") or cal_uid(item))
+            tg_send("📅 Подію прибрано з календаря.")
+    except Exception as exc:  # noqa: BLE001
+        tg_send(f"⚠️ Не вдалося прибрати подію з календаря iCloud: {exc}. Видаліть її вручну.")
 
 
 # ---------------------------------------------------------------- tenis4u API
@@ -642,6 +668,7 @@ def handle_callback(cq: dict, state: dict, cfg: dict, tz: ZoneInfo) -> None:
         x["status"] = "cancelled"
         b["skipped_days"].append(x["day"])  # не бронювати цей день знову автоматично
         tg_edit(mid, "🗑 Бронь скасовано\n" + describe(x, sources))
+        remove_calendar(x)
 
 
 def load_state() -> dict:
@@ -791,8 +818,9 @@ if __name__ == "__main__":
         _src = next(s for s in _cfg["sources"] if s["short"] == _short)
         _h = lambda s: int(s[:2]) * 60 + int(s[3:5])  # noqa: E731
         send_calendar({"day": _day, "start": _h(_st), "end": _h(_en), "court": f"{_short}{SEP}{_court}",
-                       "src": _short}, _src, ZoneInfo(_cfg["timezone"]))
-        print("файл календаря надіслано")
+                       "src": _short, "uuid": (sys.argv[7] if len(sys.argv) > 7 and sys.argv[7] else None)},
+                      _src, ZoneInfo(_cfg["timezone"]))
+        print("подію календаря надіслано")
     elif cmd == "probe":  # діагностика запиту бронювання twojtenis (дата в минулому, бронь не створюється)
         _cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
         _src = next(s for s in _cfg["sources"] if s.get("type") == "twojtenis")

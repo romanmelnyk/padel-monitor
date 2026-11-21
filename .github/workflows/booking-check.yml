@@ -5,7 +5,7 @@ name: booking-check
 #  - вручну (Run workflow): ще й вхід у кожен клуб з вашими секретами і список днів, де у вас уже є бронь.
 on:
   push:
-    paths: ["booker.py", "collector.py", "config.json", "tt_login.py", ".github/workflows/booking-check.yml"]
+    paths: ["booker.py", "collector.py", "config.json", "tt_login.py", "icloud_cal.py", ".github/workflows/booking-check.yml"]
   workflow_dispatch: {}
 
 permissions:
@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Syntax
-        run: python -m py_compile collector.py booker.py analyze.py tt_login.py
+        run: python -m py_compile collector.py booker.py analyze.py tt_login.py icloud_cal.py
       - name: Selftest
         run: python booker.py selftest
       - name: Install browser for twojtenis login
@@ -37,6 +37,15 @@ jobs:
           TWOJTENIS_LOGIN: ${{ secrets.TWOJTENIS_LOGIN }}
           TWOJTENIS_PASSWORD: ${{ secrets.TWOJTENIS_PASSWORD }}
         run: python booker.py check
+      - name: iCloud calendar check
+        if: always() && github.event_name == 'workflow_dispatch'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ICLOUD_USER: ${{ secrets.ICLOUD_USER }}
+          ICLOUD_APP_PASSWORD: ${{ secrets.ICLOUD_APP_PASSWORD }}
+          ICLOUD_CALENDAR: ${{ secrets.ICLOUD_CALENDAR }}
+        run: python icloud_cal.py check
       - name: Błonia booking request probe (past date, nothing is booked)
         if: always() && github.event_name == 'workflow_dispatch'
         env:
