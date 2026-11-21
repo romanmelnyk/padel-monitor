@@ -94,6 +94,65 @@ def tg_edit(message_id: int | None, text: str, buttons: list[list[tuple[str, str
     tg("editMessageText", payload)
 
 
+def tg_send_file(filename: str, content: bytes, caption: str = "") -> None:
+    """Надсилає файл (sendDocument, multipart). Без токена лише друкує, що надіслав би."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+    if not token:
+        print(f"[telegram file {filename}, {len(content)} байт] {caption}")
+        return
+    boundary = "----padelmonitor" + str(int(time.time() * 1000))
+    parts = []
+    for name, value in (("chat_id", chat_id), ("caption", caption)):
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="document"; filename="{filename}"\r\n'
+                 f"Content-Type: text/calendar; charset=utf-8\r\n\r\n".encode() + content + b"\r\n")
+    parts.append(f"--{boundary}--\r\n".encode())
+    req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendDocument", data=b"".join(parts),
+                                 headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+    try:
+        with urllib.request.urlopen(req, timeout=30):
+            pass
+    except urllib.error.HTTPError as exc:  # без URL: у ньому токен
+        log(f"telegram sendDocument: HTTP {exc.code}")
+    except Exception as exc:  # noqa: BLE001
+        log(f"telegram sendDocument: {type(exc).__name__}")
+
+
+def ics_escape(s: str) -> str:
+    return s.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+
+
+def make_ics(item: dict, src: dict, tz: ZoneInfo, note: str = "") -> bytes:
+    """Подія календаря для броні (час в UTC, нагадування за 2 год)."""
+    start = datetime.fromisoformat(f"{item['day']}T{to_hm(item['start'])}").replace(tzinfo=tz)
+    end = start + timedelta(minutes=item["end"] - item["start"])
+    fmt = "%Y%m%dT%H%M%SZ"
+    court = item["court"].split(SEP, 1)[-1]
+    uid = f"{item.get('uuid') or item.get('key') or item['day']}@padel-monitor"
+    desc = "\n".join(x for x in (note, my_url(src)) if x)
+    title = f"Падел · {src.get('name', item['src'])} · {court}"
+    lines = [
+        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//padel-monitor//UA", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+        "BEGIN:VEVENT",
+        f"UID:{ics_escape(uid)}",
+        f"DTSTAMP:{datetime.now(timezone.utc).strftime(fmt)}",
+        f"DTSTART:{start.astimezone(timezone.utc).strftime(fmt)}",
+        f"DTEND:{end.astimezone(timezone.utc).strftime(fmt)}",
+        f"SUMMARY:{ics_escape(title)}",
+        f"LOCATION:{ics_escape(src.get('address') or src.get('name', ''))}",
+        f"DESCRIPTION:{ics_escape(desc)}",
+        "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:Падел", "TRIGGER:-PT2H", "END:VALARM",
+        "END:VEVENT", "END:VCALENDAR", "",
+    ]
+    return "\r\n".join(lines).encode("utf-8")
+
+
+def send_calendar(item: dict, src: dict, tz: ZoneInfo, note: str = "") -> None:
+    fname = f"padel-{item['day']}-{to_hm(item['start']).replace(':', '')}.ics"
+    tg_send_file(fname, make_ics(item, src, tz, note), "📅 Натисніть, щоб додати в календар")
+
+
 # ---------------------------------------------------------------- tenis4u API
 
 class T4UError(RuntimeError):
@@ -501,6 +560,7 @@ def process(blocks: list[dict], cfg: dict, state: dict, now: datetime, tz: ZoneI
                     f"{cancel_text(item, tz, cancel_h)}{extra}\n"
                     f"{my_url(sources[item['src']])}",
                     [[("❌ Скасувати бронь", f"c:{item['id']}")]])
+                send_calendar(item, sources[item["src"]], tz, f"{cost.strip()}\n{cancel_text(item, tz, cancel_h)}")
             else:
                 b["failed"].append(item["key"])
                 tg_send(f"⚠️ Не вдалося забронювати\n{describe(item, sources)}\nПричина: {extra}")
@@ -559,6 +619,8 @@ def handle_callback(cq: dict, state: dict, cfg: dict, tz: ZoneInfo) -> None:
                          f"{cancel_text(o, tz, (cfg.get('booking') or {}).get('cancel_limit_hours', 24))}"
                          f"{extra}\n{my_url(sources[o['src']])}",
                     [[("❌ Скасувати бронь", f"c:{oid}")]])
+            send_calendar(o, sources[o["src"]], tz, f"{cost.strip()}\n"
+                          f"{cancel_text(o, tz, (cfg.get('booking') or {}).get('cancel_limit_hours', 24))}")
         else:
             o["status"] = "failed"
             tg_edit(mid, f"⚠️ Не вдалося забронювати\n{describe(o, sources)}\nПричина: {extra}")
@@ -681,6 +743,9 @@ def selftest() -> int:
     n = len(sent)
     process(blocks, cfg, state, now, tz, sources, {})
     assert len(sent) == n and len(booked) == 3
+    ics = make_ics(booked[0] | {"uuid": "abc"}, sources["Fame"], tz, "Ціна: 150 zł").decode("utf-8")
+    assert "DTSTART:20261121T170000Z" in ics and "DTEND:20261121T190000Z" in ics, ics  # 18:00 Варшава = 17:00 UTC
+    assert "SUMMARY:Падел · Fame Sport Club · Padel hala" in ics and "TRIGGER:-PT2H" in ics, ics
     print("\n---\n".join(sent))
     print("selftest OK")
     return 0
@@ -716,6 +781,18 @@ if __name__ == "__main__":
         _cu = f"\nСкасувати можна до: {_res.get('cancelUntil')}" if _res.get("cancelUntil") else ""
         tg_send(f"✅ Тестова бронь\n{_src['name']} · {_court}\n{fmt_day(_day)} {_st}–{_en}\n"
                 f"Ціна: {_res.get('_cost')} zł (оплата в клубі){_cu}\n{my_url(_src)}")
+        _h = lambda s: int(s[:2]) * 60 + int(s[3:5])  # noqa: E731
+        send_calendar({"day": _day, "start": _h(_st), "end": _h(_en), "court": f"{_short}{SEP}{_court}",
+                       "src": _short, "uuid": _bid}, _src, ZoneInfo(_cfg["timezone"]),
+                      f"Ціна: {_res.get('_cost')} zł (оплата в клубі){_cu}")
+    elif cmd == "ics":  # лише файл календаря для вже існуючої броні: ics <short> "<корт>" YYYY-MM-DD HH:MM HH:MM
+        _cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+        _short, _court, _day, _st, _en = sys.argv[2:7]
+        _src = next(s for s in _cfg["sources"] if s["short"] == _short)
+        _h = lambda s: int(s[:2]) * 60 + int(s[3:5])  # noqa: E731
+        send_calendar({"day": _day, "start": _h(_st), "end": _h(_en), "court": f"{_short}{SEP}{_court}",
+                       "src": _short}, _src, ZoneInfo(_cfg["timezone"]))
+        print("файл календаря надіслано")
     elif cmd == "probe":  # діагностика запиту бронювання twojtenis (дата в минулому, бронь не створюється)
         _cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
         _src = next(s for s in _cfg["sources"] if s.get("type") == "twojtenis")
