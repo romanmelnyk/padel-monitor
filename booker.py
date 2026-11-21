@@ -237,6 +237,10 @@ class Twojtenis:
                 msg = err.get("error") or err.get("title") or err.get("message") or raw[:200]
                 if isinstance(err, dict) and err.get("errors"):  # ASP.NET: {"errors": {"поле": ["причина"]}}
                     msg = f"{msg} {json.dumps(err['errors'], ensure_ascii=False)[:400]}"
+                elif isinstance(err, dict) and err.get("detail"):
+                    msg = f"{msg}: {err['detail']}"
+                elif msg in ("Bad Request", "Conflict"):
+                    msg = f"{msg} {raw[:300]}"
             except json.JSONDecodeError:
                 msg = raw[:200]
             path = urllib.parse.urlparse(url).path
