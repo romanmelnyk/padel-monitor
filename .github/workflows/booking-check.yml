@@ -37,3 +37,9 @@ jobs:
           TWOJTENIS_LOGIN: ${{ secrets.TWOJTENIS_LOGIN }}
           TWOJTENIS_PASSWORD: ${{ secrets.TWOJTENIS_PASSWORD }}
         run: python booker.py check
+      - name: Błonia booking request probe (past date, nothing is booked)
+        if: always() && github.event_name == 'workflow_dispatch'
+        env:
+          TWOJTENIS_LOGIN: ${{ secrets.TWOJTENIS_LOGIN }}
+          TWOJTENIS_PASSWORD: ${{ secrets.TWOJTENIS_PASSWORD }}
+        run: python booker.py probe

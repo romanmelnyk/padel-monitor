@@ -235,6 +235,8 @@ class Twojtenis:
             try:
                 err = json.loads(raw)
                 msg = err.get("error") or err.get("title") or err.get("message") or raw[:200]
+                if isinstance(err, dict) and err.get("errors"):  # ASP.NET: {"errors": {"поле": ["причина"]}}
+                    msg = f"{msg} {json.dumps(err['errors'], ensure_ascii=False)[:400]}"
             except json.JSONDecodeError:
                 msg = raw[:200]
             path = urllib.parse.urlparse(url).path
@@ -255,6 +257,28 @@ class Twojtenis:
         return {str(b.get("date"))[:10] for b in items if isinstance(b, dict) and not b.get("isDeleted")}
 
     def book(self, location_id: str, location_name: str, day: str, start: str, end: str) -> dict:
+        prof, price = self._prepare(location_id, day, start, end)
+        body = self._body(prof, price, location_id, location_name, day, start, end)
+        res = self._req("POST", f"{self.svc}/api/v1/Clubs/{self.club}/bookings", body)
+        first = res[0] if isinstance(res, list) and res else res if isinstance(res, dict) else {}
+        first["_cost"] = price["price"]
+        return first
+
+    def probe(self, location_id: str, location_name: str) -> str:
+        """Діагностика: справжня ціна на майбутній день, але дата броні — вчора.
+        Сервер спершу перевіряє формат полів; бронь у минулому створити неможливо."""
+        future = (date.today() + timedelta(days=3)).isoformat()
+        past = (date.today() - timedelta(days=1)).isoformat()
+        prof, price = self._prepare(location_id, future, "21:00:00", "22:30:00")
+        body = self._body(prof, price, location_id, location_name, past, "21:00:00", "22:30:00")
+        nulls = [k for k, v in body.items() if v is None] + [f"requests.{k}" for k, v in body["requests"][0].items() if v is None]
+        try:
+            res = self._req("POST", f"{self.svc}/api/v1/Clubs/{self.club}/bookings", body)
+            return f"НЕОЧІКУВАНО прийнято: {json.dumps(res, ensure_ascii=False)[:300]}"
+        except T4UError as exc:
+            return f"{exc} | порожні поля: {nulls or '-'}"
+
+    def _prepare(self, location_id: str, day: str, start: str, end: str) -> tuple[dict, dict]:
         me = self._req("GET", f"{self.api}/Players/me")
         try:
             prof = self._req("GET", f"{self.api}/Clubs/{self.club}/players/{me['id']}")
@@ -271,8 +295,12 @@ class Twojtenis:
         price = (calc.get("prices") or [{}])[0]
         if not price.get("checksum") or price.get("failed"):
             raise T4UError(f"клуб не дав ціну на цей час: {json.dumps(calc, ensure_ascii=False)[:200]}")
+        return prof, price
+
+    def _body(self, prof: dict, price: dict, location_id: str, location_name: str,
+              day: str, start: str, end: str) -> dict:
         due = datetime.fromisoformat(f"{day}T{start}").replace(tzinfo=ZoneInfo("Europe/Warsaw"))
-        body = {
+        return {
             "requests": [{
                 "payment": {"amountToPay": price["price"], "discountType": "absolute", "discountValue": 0,
                             "paidAmount": 0, "initialAmount": price["price"],
@@ -289,10 +317,6 @@ class Twojtenis:
             "bookerEmail": prof.get("email"), "bookerPhone": prof.get("phoneNumber"),
             "source": 0, "isSmartTennisMatch": False, "isOnlinePayment": False, "webApp": True,
         }
-        res = self._req("POST", f"{self.svc}/api/v1/Clubs/{self.club}/bookings", body)
-        first = res[0] if isinstance(res, list) and res else res if isinstance(res, dict) else {}
-        first["_cost"] = price["price"]
-        return first
 
     def cancel(self, booking_id: str) -> None:
         self._req("POST", f"{self.svc}/api/v1/Bookings/my/{booking_id}/cancel", {})
@@ -665,5 +689,13 @@ if __name__ == "__main__":
         sys.exit(check())
     elif cmd == "selftest":
         sys.exit(selftest())
+    elif cmd == "probe":  # діагностика запиту бронювання twojtenis (дата в минулому, бронь не створюється)
+        _cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+        _src = next(s for s in _cfg["sources"] if s.get("type") == "twojtenis")
+        _c = Twojtenis(_src)
+        _c.login()
+        _club = _c._req("GET", f"{_c.api}/Clubs/{_c.club}")
+        _loc = next(l for l in _club["locations"] if l.get("type") == _src["court_type"])
+        print(f"{_src['short']} probe: {_c.probe(_loc['id'], _loc['name'])}")
     else:
         print(__doc__)
