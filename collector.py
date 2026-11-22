@@ -555,6 +555,7 @@ def main() -> int:
         "last_run": ts, "windows": windows, "free": new_free, "src_meta": src_meta,
         "sources_seen": sorted(seen_sources | set(results)), "court_ids": court_ids,
         "booking": state.get("booking", {}), "tg_offset": state.get("tg_offset", 0),
+        "ptmates": state.get("ptmates", {}),  # які ігри PTmates уже в календарі (інакше щоразу "оновлення")
     }
     # автобронювання: бронює / пропонує і повертає дні, про які звичайне сповіщення не потрібне
     quiet_days: set[str] = set()

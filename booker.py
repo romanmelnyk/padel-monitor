@@ -159,9 +159,7 @@ def send_calendar(item: dict, src: dict, tz: ZoneInfo, note: str = "") -> None:
     try:
         import icloud_cal
         if icloud_cal.configured():
-            icloud_cal.put_event(item["cal_uid"], ics)
-            tg_send(f"📅 Додано в календар «{os.environ.get('ICLOUD_CALENDAR', '').strip()}»: "
-                    f"{fmt_day(item['day'])} {to_hm(item['start'])}–{to_hm(item['end'] % (24 * 60))}")
+            icloud_cal.put_event(item["cal_uid"], ics)  # мовчки: пишемо в Telegram лише про помилки
             return
     except Exception as exc:  # noqa: BLE001 - календар не має ламати бронювання
         tg_send(f"⚠️ Не вдалося додати бронь у календар iCloud: {exc}")
@@ -174,7 +172,6 @@ def remove_calendar(item: dict) -> None:
         import icloud_cal
         if icloud_cal.configured():
             icloud_cal.delete_event(item.get("cal_uid") or cal_uid(item))
-            tg_send("📅 Подію прибрано з календаря.")
     except Exception as exc:  # noqa: BLE001
         tg_send(f"⚠️ Не вдалося прибрати подію з календаря iCloud: {exc}. Видаліть її вручну.")
 
@@ -261,7 +258,7 @@ class Tenis4u:
                     break
         return days
 
-    def tariff_id(self, station_id: int, start: datetime, end: datetime) -> tuple[int | None, float | None]:
+    def tariff_id(self, station_id: int, start: datetime, end: datetime) -> tuple[int | None, float | None, list[str]]:
         q = urllib.parse.urlencode({
             "lightning": "false", "multisport": 0, "medicover": 0,
             "start": start.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
@@ -272,10 +269,12 @@ class Tenis4u:
         items = [t for t in items if isinstance(t, dict) and t.get("id")]
         cash = [t for t in items if "CASH" in (t.get("available_payment_methods") or [])]
         best = (cash or items or [None])[0]
-        return (best or {}).get("id"), (best or {}).get("cost")
+        return (best or {}).get("id"), (best or {}).get("cost"), list((best or {}).get("available_payment_methods") or [])
 
     def book(self, station_id: int, start: datetime, end: datetime) -> dict:
-        tariff, cost = self.tariff_id(station_id, start, end)
+        tariff, cost, methods = self.tariff_id(station_id, start, end)
+        if methods and "CASH" not in methods:
+            raise T4UError("клуб приймає за цей час лише онлайн-оплату — не бронюю")
         body = {
             "station_id": int(station_id),
             "start_time": start.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -285,8 +284,22 @@ class Tenis4u:
             "lightning": False,
             "tariff_id": tariff,
         }
+        if "ONLINE" in methods:
+            # клуб із вибором оплати (Padel House): без цього бронь створюється з онлайн-оплатою
+            # і сама скасовується через 30 хв. Так само робить застосунок, коли обираєте «Gotówka».
+            body["payment"] = {"payment_method": "CASH",
+                               "payment_config": {"return_url": "https://app.tenis4u.pl/user/dashboard"}}
         res = self._req("POST", "/api/v3/reservations", body=body)
         res = res if isinstance(res, dict) else {}
+        pay = res.get("payment") if isinstance(res.get("payment"), dict) else {}
+        if pay.get("redirect_url") or str(pay.get("payment_method") or pay.get("method") or "").upper() == "ONLINE":
+            uuid = res.get("public_uuid") or res.get("uuid") or res.get("id")
+            if uuid:
+                try:
+                    self.cancel(str(uuid))
+                except T4UError as exc:
+                    log(f"не вдалося скасувати онлайн-бронь {uuid}: {exc}")
+            raise T4UError("клуб оформив бронь з онлайн-оплатою (сама скасувалась би за 30 хв) — скасував її")
         res["_cost"] = cost
         return res
 
@@ -506,6 +519,35 @@ def do_book(item: dict, sources: dict, court_ids: dict, tz: ZoneInfo) -> tuple[b
     return True, extra
 
 
+def verify_bookings(b: dict, sources: dict, now: datetime) -> None:
+    """Раз на годину звіряє активні броні бота в tenis4u: скасовані (клубом чи вами) знімає,
+    щоб день знову можна було бронювати, і прибирає подію з календаря."""
+    if time.time() - b.get("verified_at", 0) < 3600:
+        return
+    mine = [x for x in active_bookings(b, now) if (sources.get(x["src"]) or {}).get("type") == "tenis4u"]
+    if not mine:
+        b["verified_at"] = time.time()
+        return
+    try:
+        client = Tenis4u(sources[mine[0]["src"]])
+        client.login()
+        alive = set()
+        for _p, it in client.my_reservations():
+            status = str(it.get("status") or "").upper()
+            if not any(s in status for s in ("CANCEL", "DELETED", "REJECT", "EXPIRED")):
+                alive.add(str(it.get("public_uuid") or it.get("uuid") or it.get("id")))
+    except T4UError as exc:
+        log(f"verify: {exc}")
+        return
+    b["verified_at"] = time.time()
+    for x in mine:
+        if x.get("uuid") and x["uuid"] not in alive:
+            x["status"] = "gone"
+            remove_calendar(x)
+            tg_send(f"ℹ️ Бронь більше не активна (скасована клубом або вами), прибрав з календаря:\n"
+                    f"{describe(x, sources)}")
+
+
 def cancel_text(item: dict, tz: ZoneInfo, hours: int) -> str:
     """«Скасувати безкоштовно можна до …» — з відповіді клубу (twojtenis) або за налаштуванням."""
     dl = None
@@ -539,6 +581,8 @@ def process(blocks: list[dict], cfg: dict, state: dict, now: datetime, tz: ZoneI
         return set()
 
     today = now.date().isoformat()
+    if not os.environ.get("PADEL_SELFTEST"):
+        verify_bookings(b, sources, now)
     booked_days = {x["day"] for x in active_bookings(b, now)}
     # прибираємо старе
     b["offers"] = {k: o for k, o in b["offers"].items() if o["day"] >= today}
@@ -940,8 +984,8 @@ def ptmates_sync() -> int:
             icloud_cal.delete_event(f"{rid}@padel-monitor", cal)
             changes.append("🗑 гру прибрано з PTmates — видалено з календаря")
     save_state(state)
-    if changes:
-        tg_send("📅 Календар оновлено з PTmates:\n" + "\n".join(changes))
+    for c in changes:  # без повідомлень у Telegram: лише в журнал
+        print(f"ptmates: {c}")
     print(f"ptmates: ігор {len(data['reservations'])}, змін у календарі: {len(changes)}")
     return 0
 
@@ -998,6 +1042,7 @@ def selftest() -> int:
     do_book, tg_send, tg_edit = fake_book, fake_send, lambda *a, **k: None
     os.environ.setdefault("TENIS4U_LOGIN", "test")
     os.environ.setdefault("TWOJTENIS_LOGIN", "test")
+    os.environ["PADEL_SELFTEST"] = "1"
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     tz = ZoneInfo(cfg["timezone"])
     now = datetime(2026, 11, 20, 12, 0, tzinfo=tz)  # пт
