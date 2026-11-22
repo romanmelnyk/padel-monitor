@@ -1080,10 +1080,14 @@ def ptmates_sync() -> int:
         return 1
     pm.pop("fails", None)
     pm.pop("warned", None)
+    # лише майбутні ігри (сайт віддає всі одним запитом, фільтра за датою немає)
+    _now_s = datetime.now(tz).strftime("%Y-%m-%dT%H:%M:%S")
+    data["reservations"] = [r for r in data["reservations"] if str(r.get("ends_at", ""))[:19] > _now_s]
     try:
         ptmates_publish(data, state, cfg, tz)
     except Exception as exc:  # noqa: BLE001 - публікація не має ламати календар
         log(f"ptmates_publish: {type(exc).__name__}: {exc}")
+    data["reservations"] = [r for r in data["reservations"] if str(r.get("ends_at", ""))[:19] > _now_s]
     # гра Błonia в PTmates = бронь twojtenis: та сама подія в календарі (без дубліката)
     blonia_uid = {f"{b['day']}T{b['start']}": b["id"] for b in (pm.get("blonia") or {}).get("items", [])}
 
@@ -1147,7 +1151,7 @@ def ptmates_sync() -> int:
     save_state(state)
     for c in changes:  # без повідомлень у Telegram: лише в журнал
         print(f"ptmates: {c}")
-    print(f"ptmates: ігор {len(data['reservations'])}, змін у календарі: {len(changes)}")
+    print(f"ptmates: майбутніх ігор {len(data['reservations'])}, змін у календарі: {len(changes)}")
     return 0
 
 
