@@ -525,6 +525,15 @@ def do_book(item: dict, sources: dict, court_ids: dict, tz: ZoneInfo) -> tuple[b
     return True, extra
 
 
+def needs_cash(it: dict) -> bool:
+    """Бронь tenis4u, де ви організатор і спосіб оплати ще не обрано (статус PENDING_PAYMENT / оплата NONE)."""
+    pay = str(it.get("my_payment_status") or "").upper()
+    status = str(it.get("status") or "").upper()
+    role = str(it.get("my_role") or "ORGANIZER").upper()
+    return role == "ORGANIZER" and (pay in ("", "NONE", "UNPAID", "PENDING_PAYMENT") and
+                                    (status == "PENDING_PAYMENT" or pay in ("UNPAID", "PENDING_PAYMENT")))
+
+
 def verify_bookings(b: dict, sources: dict, now: datetime) -> None:
     """Раз на годину звіряє активні броні бота в tenis4u: скасовані (клубом чи вами) знімає,
     щоб день знову можна було бронювати, і прибирає подію з календаря."""
@@ -544,7 +553,7 @@ def verify_bookings(b: dict, sources: dict, now: datetime) -> None:
             if not any(s in status for s in ("CANCEL", "DELETED", "REJECT", "EXPIRED")):
                 uid = str(it.get("public_uuid") or it.get("uuid") or it.get("id"))
                 alive.add(uid)
-                if str(it.get("my_payment_status") or "").upper() in ("UNPAID", "PENDING_PAYMENT"):
+                if needs_cash(it):
                     unpaid.add(uid)
         for x in mine:  # броні бота «до оплати» -> оплата готівкою
             if x.get("uuid") in unpaid:
@@ -1271,7 +1280,7 @@ if __name__ == "__main__":
             _st = str(_it.get("start_time") or "")[:16]
             _pay = str(_it.get("my_payment_status") or "").upper()
             print(f"{_st} {_it.get('court_name')} статус={_it.get('status')} оплата={_pay or '-'} роль={_it.get('my_role')}")
-            if _st > _now and _pay in ("UNPAID", "PENDING_PAYMENT") and _it.get("public_uuid"):
+            if _st > _now and needs_cash(_it) and _it.get("public_uuid"):
                 try:
                     _r = _c.pay_cash(_it["public_uuid"])
                     _online = isinstance(_r, dict) and (_r.get("payment") or {}).get("redirect_url")
