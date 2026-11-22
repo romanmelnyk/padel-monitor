@@ -896,12 +896,31 @@ PTMATES_URL = "https://ptmates.com"
 BLONIA_REFRESH_SEC = 3 * 3600  # як часто перечитувати броні Błonia (вхід через браузер, тож не частіше)
 
 
+_PT_CSRF: list[str] = []
+
+
+def _pt_csrf() -> str:
+    """CSRF-токен, який сайт кладе в <meta name="csrf-token"> (так само робить сам браузер)."""
+    if not _PT_CSRF:
+        import re
+        req = urllib.request.Request(PTMATES_URL + "/calendar", headers={
+            "Cookie": os.environ.get("PTMATES_COOKIE", "").strip(), "User-Agent": "padel-slot-monitor/1.0"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            html = resp.read().decode("utf-8", "replace")
+        m = re.search(r'<meta[^>]+name=["\']csrf-token["\'][^>]+content=["\']([^"\']+)', html) or \
+            re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']csrf-token', html)
+        _PT_CSRF.append(m.group(1) if m else "")
+    return _PT_CSRF[0]
+
+
 def _pt(method: str, path: str, body=None):
     """Запит до PTmates з вашою сесією (секрет PTMATES_COOKIE)."""
     data = json.dumps(body).encode("utf-8") if body is not None else None
-    req = urllib.request.Request(PTMATES_URL + path, data=data, method=method, headers={
-        "Cookie": os.environ.get("PTMATES_COOKIE", "").strip(), "Accept": "application/json",
-        "Content-Type": "application/json", "User-Agent": "padel-slot-monitor/1.0"})
+    headers = {"Cookie": os.environ.get("PTMATES_COOKIE", "").strip(), "Accept": "application/json",
+               "Content-Type": "application/json", "User-Agent": "padel-slot-monitor/1.0"}
+    if method != "GET":
+        headers.update({"X-CSRF-Token": _pt_csrf(), "Origin": PTMATES_URL, "Referer": f"{PTMATES_URL}/calendar"})
+    req = urllib.request.Request(PTMATES_URL + path, data=data, method=method, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             raw = resp.read().decode("utf-8")
