@@ -820,7 +820,7 @@ def collect_my_bookings(cfg: dict, tz: ZoneInfo) -> list[tuple[dict, dict, str]]
             item = {"day": start.date().isoformat(), "start": start.hour * 60 + start.minute,
                     "end": start.hour * 60 + start.minute + int((end - start).total_seconds() // 60),
                     "court": f"{src['short']}{SEP}{station}", "src": src["short"], "uuid": str(uid) if uid else None}
-            price = it.get("price") or it.get("cost")
+            price = it.get("total_price") or it.get("price") or it.get("cost")
             out.append((item, src, f"Ціна: {price} zł" if price else ""))
 
     tt_srcs = [s for s in cfg["sources"] if s.get("type") == "twojtenis" and s.get("enabled", True)]
