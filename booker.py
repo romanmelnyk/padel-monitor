@@ -893,6 +893,111 @@ def collect_my_bookings(cfg: dict, tz: ZoneInfo) -> list[tuple[dict, dict, str]]
 
 
 PTMATES_URL = "https://ptmates.com"
+BLONIA_REFRESH_SEC = 3 * 3600  # як часто перечитувати броні Błonia (вхід через браузер, тож не частіше)
+
+
+def _pt(method: str, path: str, body=None):
+    """Запит до PTmates з вашою сесією (секрет PTMATES_COOKIE)."""
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    req = urllib.request.Request(PTMATES_URL + path, data=data, method=method, headers={
+        "Cookie": os.environ.get("PTMATES_COOKIE", "").strip(), "Accept": "application/json",
+        "Content-Type": "application/json", "User-Agent": "padel-slot-monitor/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        raise T4UError(f"PTmates HTTP {exc.code} {method} {path}: {exc.read()[:200]!r}") from None
+    return json.loads(raw) if raw.strip() else {}
+
+
+def _norm(s: str) -> str:
+    return str(s or "").lower().replace("ł", "l").replace("ó", "o").replace("ń", "n").strip()
+
+
+def ptmates_publish(data: dict, state: dict, cfg: dict, tz: ZoneInfo) -> bool:
+    """1) броні Błonia -> ігри в PTmates («Blonia Sport», без клубу);
+    2) ігри з tenis4u, якими ви керуєте, -> публічні; 3) у всі ваші ігри додає вас учасником.
+    Повертає True, якщо щось змінив (тоді календар треба перечитати)."""
+    me = str(data.get("currentUserContactId") or "")
+    if not me:
+        return False
+    now = datetime.now(tz)
+    pm = state.setdefault("ptmates", {"hash": {}})
+    changed = False
+
+    # --- Błonia: ваші броні з twojtenis (кеш на 3 год; раніше, якщо бот щойно забронював Błonia)
+    tt_src = next((s for s in cfg["sources"] if s.get("type") == "twojtenis" and s.get("enabled", True)), None)
+    cache = pm.setdefault("blonia", {"ts": 0, "items": []})
+    bot_new = any(x.get("src") == (tt_src or {}).get("short") and x.get("uuid") not in
+                  {i["id"] for i in cache["items"]} for x in active_bookings(bstate(state), now))
+    if tt_src and os.environ.get("TWOJTENIS_LOGIN") and (time.time() - cache["ts"] > BLONIA_REFRESH_SEC or bot_new):
+        try:
+            c = Twojtenis(tt_src)
+            c.login()
+            cache["items"] = [{"id": str(b.get("id")), "day": str(b.get("date"))[:10],
+                               "start": str(b.get("startTime"))[:5], "end": str(b.get("endTime"))[:5],
+                               "court": b.get("locationName") or "", "price": b.get("price")}
+                              for b in c.my_bookings() if b.get("clubId") == tt_src["club_id"]]
+            cache["ts"] = time.time()
+        except T4UError as exc:
+            log(f"ptmates/blonia: {exc}")
+    created = pm.setdefault("created", {})  # twojtenis id -> так, гру в PTmates уже створено
+    existing = {(str(r.get("starts_at"))[:16], _norm(r.get("title"))) for r in data["reservations"]}
+    for b in cache["items"]:
+        start = f"{b['day']}T{b['start']}"
+        if b["id"] in created or datetime.fromisoformat(start).replace(tzinfo=tz) <= now:
+            continue
+        if any(s == start and "blonia" in t for s, t in existing):
+            created[b["id"]] = "found"
+            continue
+        dur = (int(b["end"][:2]) * 60 + int(b["end"][3:5]) or 24 * 60) - (int(b["start"][:2]) * 60 + int(b["start"][3:5]))
+        try:
+            _pt("POST", "/api/games/custom", {"title": "Blonia Sport", "station_name": b["court"], "starts_at": start,
+                                              "duration_minutes": str(dur), "price": str(b.get("price") or ""),
+                                              "club_id": None})
+            created[b["id"]] = "created"
+            changed = True
+            print(f"ptmates: створено гру Błonia {start} {b['court']}")
+        except T4UError as exc:
+            log(f"ptmates/custom: {exc}")
+    if changed:  # перечитуємо, щоб нові ігри пройшли крок «додати вас учасником»
+        data.update(_pt("GET", "/api/calendar/bootstrap"))
+
+    # --- публічність і участь
+    for r in data["reservations"]:
+        rid = str(r.get("id"))
+        if not r.get("can_manage") or str(r.get("ends_at", ""))[:19] <= now.strftime("%Y-%m-%dT%H:%M:%S"):
+            continue
+        if any(s in str(r.get("status") or "").upper() for s in ("CANCEL", "DELETED", "REJECT")):
+            continue
+        players = list(data.get("playersByReservationId", {}).get(rid) or [])
+        privacy = str(data.get("privacyByReservationId", {}).get(rid) or "PERSONAL").upper()
+        from_t4u = str(r.get("source") or "").upper() == "API"
+        want_public = from_t4u
+        if me in players and (privacy == "PUBLIC" or not want_public):
+            continue
+        invites = data.get("invitesByReservationId", {}).get(rid) or []
+        order = list(data.get("playerOrderByReservationId", {}).get(rid) or [f"pid:{p}" for p in players])
+        new_privacy = "PUBLIC" if want_public else privacy
+        body = {
+            "players": [me] + [p for p in players if p != me],
+            "is_public": new_privacy == "PUBLIC",
+            "privacy_mode": new_privacy,
+            "community_ids": [] if new_privacy != "COMMUNITY" else
+            list(data.get("reservationCommunityIdsByReservationId", {}).get(rid) or []),
+            "max_players": int(data.get("maxPlayersByReservationId", {}).get(rid) or 4),
+            "invited_user_ids": [i["user_id"] for i in invites if i.get("user_id")
+                                 and str(i.get("status") or "").upper() not in ("DECLINED", "CANCELED")],
+            "player_order": [f"pid:{me}"] + [k for k in order if k != f"pid:{me}"],
+        }
+        try:
+            _pt("POST", f"/api/reservations/{rid}/manage", body)
+            changed = True
+            print(f"ptmates: {r.get('title')} {str(r.get('starts_at'))[:16]}: "
+                  f"{'публічна, ' if want_public and privacy != 'PUBLIC' else ''}учасник {'додано' if me not in players else 'є'}")
+        except T4UError as exc:
+            log(f"ptmates/manage {rid[:8]}: {exc}")
+    return changed
 
 
 def ptmates_sync() -> int:
@@ -927,6 +1032,12 @@ def ptmates_sync() -> int:
         return 1
     pm.pop("fails", None)
     pm.pop("warned", None)
+    try:
+        ptmates_publish(data, state, cfg, tz)
+    except Exception as exc:  # noqa: BLE001 - публікація не має ламати календар
+        log(f"ptmates_publish: {type(exc).__name__}: {exc}")
+    # гра Błonia в PTmates = бронь twojtenis: та сама подія в календарі (без дубліката)
+    blonia_uid = {f"{b['day']}T{b['start']}": b["id"] for b in (pm.get("blonia") or {}).get("items", [])}
 
     now = datetime.now(tz)
     cal = None
@@ -942,6 +1053,8 @@ def ptmates_sync() -> int:
         if end <= now:
             continue
         rid = str(r.get("id"))
+        if "blonia" in _norm(r.get("title")) and blonia_uid.get(str(r.get("starts_at"))[:16]):
+            rid = blonia_uid[str(r.get("starts_at"))[:16]]
         uid = f"{rid}@padel-monitor"
         seen.add(uid)
         status = str(r.get("status") or "").upper()
