@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Автобронювання кортів (tenis4u.pl) + кнопки в Telegram.
+"""РђРІС‚РѕР±СЂРѕРЅСЋРІР°РЅРЅСЏ РєРѕСЂС‚С–РІ (tenis4u.pl) + РєРЅРѕРїРєРё РІ Telegram.
 
-Правила (config.json -> booking):
-  - не більше одного корту на день (бот не бронює день, де вже є ваша бронь у tenis4u);
-  - до гри >= auto_min_lead_hours (30 год) -> бронює сам і пише, до коли можна безкоштовно скасувати;
-  - менше -> надсилає пропозицію з кнопками «Забронювати» / «Пропустити»;
-  - тривалість: prefer_minutes (2 год), якщо блок дозволяє, інакше мінімальний блок (1.5 год);
-  - якщо в день кілька варіантів -> найраніший час;
-  - не більше max_active_auto активних автоброней одночасно.
+РџСЂР°РІРёР»Р° (config.json -> booking):
+  - РЅРµ Р±С–Р»СЊС€Рµ РѕРґРЅРѕРіРѕ РєРѕСЂС‚Сѓ РЅР° РґРµРЅСЊ (Р±РѕС‚ РЅРµ Р±СЂРѕРЅСЋС” РґРµРЅСЊ, РґРµ РІР¶Рµ С” РІР°С€Р° Р±СЂРѕРЅСЊ Сѓ tenis4u);
+  - РґРѕ РіСЂРё >= auto_min_lead_hours (30 РіРѕРґ) -> Р±СЂРѕРЅСЋС” СЃР°Рј С– РїРёС€Рµ, РґРѕ РєРѕР»Рё РјРѕР¶РЅР° Р±РµР·РєРѕС€С‚РѕРІРЅРѕ СЃРєР°СЃСѓРІР°С‚Рё;
+  - РјРµРЅС€Рµ -> РЅР°РґСЃРёР»Р°С” РїСЂРѕРїРѕР·РёС†С–СЋ Р· РєРЅРѕРїРєР°РјРё В«Р—Р°Р±СЂРѕРЅСЋРІР°С‚РёВ» / В«РџСЂРѕРїСѓСЃС‚РёС‚РёВ»;
+  - С‚СЂРёРІР°Р»С–СЃС‚СЊ: prefer_minutes (2 РіРѕРґ), СЏРєС‰Рѕ Р±Р»РѕРє РґРѕР·РІРѕР»СЏС”, С–РЅР°РєС€Рµ РјС–РЅС–РјР°Р»СЊРЅРёР№ Р±Р»РѕРє (1.5 РіРѕРґ);
+  - СЏРєС‰Рѕ РІ РґРµРЅСЊ РєС–Р»СЊРєР° РІР°СЂС–Р°РЅС‚С–РІ -> РЅР°Р№СЂР°РЅС–С€РёР№ С‡Р°СЃ;
+  - РЅРµ Р±С–Р»СЊС€Рµ max_active_auto Р°РєС‚РёРІРЅРёС… Р°РІС‚РѕР±СЂРѕРЅРµР№ РѕРґРЅРѕС‡Р°СЃРЅРѕ.
 
-Запуск:
-  python booker.py poll SECONDS  - слухає кнопки Telegram SECONDS секунд (між перевірками в monitor.yml)
-  python booker.py check         - перевірка входу і цін без бронювання (вручну)
+Р—Р°РїСѓСЃРє:
+  python booker.py poll SECONDS  - СЃР»СѓС…Р°С” РєРЅРѕРїРєРё Telegram SECONDS СЃРµРєСѓРЅРґ (РјС–Р¶ РїРµСЂРµРІС–СЂРєР°РјРё РІ monitor.yml)
+  python booker.py check         - РїРµСЂРµРІС–СЂРєР° РІС…РѕРґСѓ С– С†С–РЅ Р±РµР· Р±СЂРѕРЅСЋРІР°РЅРЅСЏ (РІСЂСѓС‡РЅСѓ)
 
-Логін і пароль tenis4u беруться з секретів TENIS4U_LOGIN / TENIS4U_PASSWORD.
-Дані про броні зберігаються лише в data/state.json (кеш Actions), не в репозиторії.
+Р›РѕРіС–РЅ С– РїР°СЂРѕР»СЊ tenis4u Р±РµСЂСѓС‚СЊСЃСЏ Р· СЃРµРєСЂРµС‚С–РІ TENIS4U_LOGIN / TENIS4U_PASSWORD.
+Р”Р°РЅС– РїСЂРѕ Р±СЂРѕРЅС– Р·Р±РµСЂС–РіР°СЋС‚СЊСЃСЏ Р»РёС€Рµ РІ data/state.json (РєРµС€ Actions), РЅРµ РІ СЂРµРїРѕР·РёС‚РѕСЂС–С—.
 """
 from __future__ import annotations
 
@@ -32,9 +32,9 @@ from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent
 STATE_FILE = ROOT / "data" / "state.json"
-SEP = " · "
-UA_DAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"]
-T4U_CLIENT = ("tenis", "secret")  # публічний OAuth-клієнт вебзастосунку tenis4u
+SEP = " В· "
+UA_DAYS = ["РџРЅ", "Р’С‚", "РЎСЂ", "Р§С‚", "РџС‚", "РЎР±", "РќРґ"]
+T4U_CLIENT = ("tenis", "secret")  # РїСѓР±Р»С–С‡РЅРёР№ OAuth-РєР»С–С”РЅС‚ РІРµР±Р·Р°СЃС‚РѕСЃСѓРЅРєСѓ tenis4u
 MY_RESERVATIONS_URL = "https://app.tenis4u.pl/user/dashboard"
 
 
@@ -66,7 +66,7 @@ def tg(method: str, payload: dict, timeout: int = 30):
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8")).get("result")
-    except urllib.error.HTTPError as exc:  # без URL: у ньому токен
+    except urllib.error.HTTPError as exc:  # Р±РµР· URL: Сѓ РЅСЊРѕРјСѓ С‚РѕРєРµРЅ
         log(f"telegram {method}: HTTP {exc.code} {exc.read()[:200]!r}")
     except Exception as exc:  # noqa: BLE001
         log(f"telegram {method}: {type(exc).__name__}")
@@ -95,11 +95,11 @@ def tg_edit(message_id: int | None, text: str, buttons: list[list[tuple[str, str
 
 
 def tg_send_file(filename: str, content: bytes, caption: str = "") -> None:
-    """Надсилає файл (sendDocument, multipart). Без токена лише друкує, що надіслав би."""
+    """РќР°РґСЃРёР»Р°С” С„Р°Р№Р» (sendDocument, multipart). Р‘РµР· С‚РѕРєРµРЅР° Р»РёС€Рµ РґСЂСѓРєСѓС”, С‰Рѕ РЅР°РґС–СЃР»Р°РІ Р±Рё."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
     if not token:
-        print(f"[telegram file {filename}, {len(content)} байт] {caption}")
+        print(f"[telegram file {filename}, {len(content)} Р±Р°Р№С‚] {caption}")
         return
     boundary = "----padelmonitor" + str(int(time.time() * 1000))
     parts = []
@@ -113,7 +113,7 @@ def tg_send_file(filename: str, content: bytes, caption: str = "") -> None:
     try:
         with urllib.request.urlopen(req, timeout=30):
             pass
-    except urllib.error.HTTPError as exc:  # без URL: у ньому токен
+    except urllib.error.HTTPError as exc:  # Р±РµР· URL: Сѓ РЅСЊРѕРјСѓ С‚РѕРєРµРЅ
         log(f"telegram sendDocument: HTTP {exc.code}")
     except Exception as exc:  # noqa: BLE001
         log(f"telegram sendDocument: {type(exc).__name__}")
@@ -124,14 +124,14 @@ def ics_escape(s: str) -> str:
 
 
 def make_ics(item: dict, src: dict, tz: ZoneInfo, note: str = "") -> bytes:
-    """Подія календаря для броні (час в UTC, нагадування за 2 год)."""
+    """РџРѕРґС–СЏ РєР°Р»РµРЅРґР°СЂСЏ РґР»СЏ Р±СЂРѕРЅС– (С‡Р°СЃ РІ UTC, РЅР°РіР°РґСѓРІР°РЅРЅСЏ Р·Р° 2 РіРѕРґ)."""
     start = datetime.fromisoformat(f"{item['day']}T{to_hm(item['start'])}").replace(tzinfo=tz)
     end = start + timedelta(minutes=item["end"] - item["start"])
     fmt = "%Y%m%dT%H%M%SZ"
     court = item["court"].split(SEP, 1)[-1]
     uid = cal_uid(item)
     desc = "\n".join(x for x in (note, my_url(src)) if x)
-    title = f"Падел · {src.get('name', item['src'])} · {court}"
+    title = f"РџР°РґРµР» В· {src.get('name', item['src'])} В· {court}"
     lines = [
         "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//padel-monitor//UA", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
         "BEGIN:VEVENT",
@@ -142,7 +142,7 @@ def make_ics(item: dict, src: dict, tz: ZoneInfo, note: str = "") -> bytes:
         f"SUMMARY:{ics_escape(title)}",
         f"LOCATION:{ics_escape(src.get('address') or src.get('name', ''))}",
         f"DESCRIPTION:{ics_escape(desc)}",
-        "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:Падел", "TRIGGER:-PT2H", "END:VALARM",
+        "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:РџР°РґРµР»", "TRIGGER:-PT2H", "END:VALARM",
         "END:VEVENT", "END:VCALENDAR", "",
     ]
     return "\r\n".join(lines).encode("utf-8")
@@ -153,18 +153,18 @@ def cal_uid(item: dict) -> str:
 
 
 def send_calendar(item: dict, src: dict, tz: ZoneInfo, note: str = "") -> None:
-    """Додає бронь у календар iCloud (якщо є секрети ICLOUD_*), інакше надсилає файл .ics у Telegram."""
+    """Р”РѕРґР°С” Р±СЂРѕРЅСЊ Сѓ РєР°Р»РµРЅРґР°СЂ iCloud (СЏРєС‰Рѕ С” СЃРµРєСЂРµС‚Рё ICLOUD_*), С–РЅР°РєС€Рµ РЅР°РґСЃРёР»Р°С” С„Р°Р№Р» .ics Сѓ Telegram."""
     ics = make_ics(item, src, tz, note)
     item["cal_uid"] = cal_uid(item)
     try:
         import icloud_cal
         if icloud_cal.configured():
-            icloud_cal.put_event(item["cal_uid"], ics)  # мовчки: пишемо в Telegram лише про помилки
+            icloud_cal.put_event(item["cal_uid"], ics)  # РјРѕРІС‡РєРё: РїРёС€РµРјРѕ РІ Telegram Р»РёС€Рµ РїСЂРѕ РїРѕРјРёР»РєРё
             return
-    except Exception as exc:  # noqa: BLE001 - календар не має ламати бронювання
-        tg_send(f"⚠️ Не вдалося додати бронь у календар iCloud: {exc}")
+    except Exception as exc:  # noqa: BLE001 - РєР°Р»РµРЅРґР°СЂ РЅРµ РјР°С” Р»Р°РјР°С‚Рё Р±СЂРѕРЅСЋРІР°РЅРЅСЏ
+        tg_send(f"вљ пёЏ РќРµ РІРґР°Р»РѕСЃСЏ РґРѕРґР°С‚Рё Р±СЂРѕРЅСЊ Сѓ РєР°Р»РµРЅРґР°СЂ iCloud: {exc}")
     fname = f"padel-{item['day']}-{to_hm(item['start']).replace(':', '')}.ics"
-    tg_send_file(fname, ics, "📅 Файл події для календаря")
+    tg_send_file(fname, ics, "рџ“… Р¤Р°Р№Р» РїРѕРґС–С— РґР»СЏ РєР°Р»РµРЅРґР°СЂСЏ")
 
 
 def remove_calendar(item: dict) -> None:
@@ -173,7 +173,7 @@ def remove_calendar(item: dict) -> None:
         if icloud_cal.configured():
             icloud_cal.delete_event(item.get("cal_uid") or cal_uid(item))
     except Exception as exc:  # noqa: BLE001
-        tg_send(f"⚠️ Не вдалося прибрати подію з календаря iCloud: {exc}. Видаліть її вручну.")
+        tg_send(f"вљ пёЏ РќРµ РІРґР°Р»РѕСЃСЏ РїСЂРёР±СЂР°С‚Рё РїРѕРґС–СЋ Р· РєР°Р»РµРЅРґР°СЂСЏ iCloud: {exc}. Р’РёРґР°Р»С–С‚СЊ С—С— РІСЂСѓС‡РЅСѓ.")
 
 
 # ---------------------------------------------------------------- tenis4u API
@@ -222,16 +222,16 @@ class Tenis4u:
         user = os.environ.get("TENIS4U_LOGIN", "").strip()
         pw = os.environ.get("TENIS4U_PASSWORD", "")
         if not user or not pw:
-            raise T4UError("немає секретів TENIS4U_LOGIN / TENIS4U_PASSWORD")
+            raise T4UError("РЅРµРјР°С” СЃРµРєСЂРµС‚С–РІ TENIS4U_LOGIN / TENIS4U_PASSWORD")
         basic = base64.b64encode(f"{T4U_CLIENT[0]}:{T4U_CLIENT[1]}".encode()).decode()
         form = "grant_type=password&username=" + urllib.parse.quote(user) + "&password=" + urllib.parse.quote(pw)
         res = self._req("POST", "/oauth/token", form=form, auth=f"Basic {basic}")
         self.token = res.get("access_token")
         if not self.token:
-            raise T4UError("вхід не вдався (немає access_token)")
+            raise T4UError("РІС…С–Рґ РЅРµ РІРґР°РІСЃСЏ (РЅРµРјР°С” access_token)")
 
     def my_reservations(self) -> list[tuple[str, dict]]:
-        """[(endpoint, бронь)] з обох списків броней tenis4u (нового v3 і старого)."""
+        """[(endpoint, Р±СЂРѕРЅСЊ)] Р· РѕР±РѕС… СЃРїРёСЃРєС–РІ Р±СЂРѕРЅРµР№ tenis4u (РЅРѕРІРѕРіРѕ v3 С– СЃС‚Р°СЂРѕРіРѕ)."""
         out: list[tuple[str, dict]] = []
         for path in ("/api/v3/reservations/my", "/reservation/list"):
             try:
@@ -245,7 +245,7 @@ class Tenis4u:
         return out
 
     def my_days(self) -> set[str]:
-        """Дні, на які у вас уже є активна бронь у tenis4u (будь-який клуб)."""
+        """Р”РЅС–, РЅР° СЏРєС– Сѓ РІР°СЃ СѓР¶Рµ С” Р°РєС‚РёРІРЅР° Р±СЂРѕРЅСЊ Сѓ tenis4u (Р±СѓРґСЊ-СЏРєРёР№ РєР»СѓР±)."""
         days: set[str] = set()
         for _path, it in self.my_reservations():
             status = str(it.get("status") or it.get("reservation_status") or "").upper()
@@ -274,7 +274,7 @@ class Tenis4u:
     def book(self, station_id: int, start: datetime, end: datetime) -> dict:
         tariff, cost, methods = self.tariff_id(station_id, start, end)
         if methods and "CASH" not in methods:
-            raise T4UError("клуб приймає за цей час лише онлайн-оплату — не бронюю")
+            raise T4UError("РєР»СѓР± РїСЂРёР№РјР°С” Р·Р° С†РµР№ С‡Р°СЃ Р»РёС€Рµ РѕРЅР»Р°Р№РЅ-РѕРїР»Р°С‚Сѓ вЂ” РЅРµ Р±СЂРѕРЅСЋСЋ")
         body = {
             "station_id": int(station_id),
             "start_time": start.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -285,8 +285,8 @@ class Tenis4u:
             "tariff_id": tariff,
         }
         if "CASH" in methods or not methods:
-            # завжди явно обираємо готівку (як кнопка «Gotówka» в застосунку): без цього Padel House
-            # ставить онлайн-оплату (скасування через 30 хв), а Fame лишає бронь «до оплати»
+            # Р·Р°РІР¶РґРё СЏРІРЅРѕ РѕР±РёСЂР°С”РјРѕ РіРѕС‚С–РІРєСѓ (СЏРє РєРЅРѕРїРєР° В«GotГіwkaВ» РІ Р·Р°СЃС‚РѕСЃСѓРЅРєСѓ): Р±РµР· С†СЊРѕРіРѕ Padel House
+            # СЃС‚Р°РІРёС‚СЊ РѕРЅР»Р°Р№РЅ-РѕРїР»Р°С‚Сѓ (СЃРєР°СЃСѓРІР°РЅРЅСЏ С‡РµСЂРµР· 30 С…РІ), Р° Fame Р»РёС€Р°С” Р±СЂРѕРЅСЊ В«РґРѕ РѕРїР»Р°С‚РёВ»
             body["payment"] = {"payment_method": "CASH",
                                "payment_config": {"return_url": "https://app.tenis4u.pl/user/dashboard"}}
         res = self._req("POST", "/api/v3/reservations", body=body)
@@ -298,13 +298,13 @@ class Tenis4u:
                 try:
                     self.cancel(str(uuid))
                 except T4UError as exc:
-                    log(f"не вдалося скасувати онлайн-бронь {uuid}: {exc}")
-            raise T4UError("клуб оформив бронь з онлайн-оплатою (сама скасувалась би за 30 хв) — скасував її")
+                    log(f"РЅРµ РІРґР°Р»РѕСЃСЏ СЃРєР°СЃСѓРІР°С‚Рё РѕРЅР»Р°Р№РЅ-Р±СЂРѕРЅСЊ {uuid}: {exc}")
+            raise T4UError("РєР»СѓР± РѕС„РѕСЂРјРёРІ Р±СЂРѕРЅСЊ Р· РѕРЅР»Р°Р№РЅ-РѕРїР»Р°С‚РѕСЋ (СЃР°РјР° СЃРєР°СЃСѓРІР°Р»Р°СЃСЊ Р±Рё Р·Р° 30 С…РІ) вЂ” СЃРєР°СЃСѓРІР°РІ С—С—")
         res["_cost"] = cost
         return res
 
     def pay_cash(self, uuid: str) -> dict:
-        """Обрати оплату готівкою для вже створеної броні (як «Оплатити -> Gotówka» в застосунку)."""
+        """РћР±СЂР°С‚Рё РѕРїР»Р°С‚Сѓ РіРѕС‚С–РІРєРѕСЋ РґР»СЏ РІР¶Рµ СЃС‚РІРѕСЂРµРЅРѕС— Р±СЂРѕРЅС– (СЏРє В«РћРїР»Р°С‚РёС‚Рё -> GotГіwkaВ» РІ Р·Р°СЃС‚РѕСЃСѓРЅРєСѓ)."""
         return self._req("POST", f"/api/v3/reservations/{uuid}/payments", body={
             "payment_method": "CASH",
             "payment_config": {"return_url": f"https://app.tenis4u.pl/reservation/{uuid}"}})
@@ -316,7 +316,7 @@ class Tenis4u:
 # ---------------------------------------------------------------- twojtenis.pl API
 
 class Twojtenis:
-    """Бронювання в клубі на twojtenis.pl. Вхід через невидимий браузер (tt_login.py)."""
+    """Р‘СЂРѕРЅСЋРІР°РЅРЅСЏ РІ РєР»СѓР±С– РЅР° twojtenis.pl. Р’С…С–Рґ С‡РµСЂРµР· РЅРµРІРёРґРёРјРёР№ Р±СЂР°СѓР·РµСЂ (tt_login.py)."""
 
     def __init__(self, src: dict):
         self.src = src
@@ -343,7 +343,7 @@ class Twojtenis:
             try:
                 err = json.loads(raw)
                 msg = err.get("error") or err.get("title") or err.get("message") or raw[:200]
-                if isinstance(err, dict) and err.get("errors"):  # ASP.NET: {"errors": {"поле": ["причина"]}}
+                if isinstance(err, dict) and err.get("errors"):  # ASP.NET: {"errors": {"РїРѕР»Рµ": ["РїСЂРёС‡РёРЅР°"]}}
                     msg = f"{msg} {json.dumps(err['errors'], ensure_ascii=False)[:400]}"
                 elif isinstance(err, dict) and err.get("detail"):
                     msg = f"{msg}: {err['detail']}"
@@ -359,7 +359,7 @@ class Twojtenis:
         try:
             self.token, _ = tt_login.get_token()
         except tt_login.LoginError as exc:
-            raise T4UError(f"вхід у twojtenis: {exc}") from None
+            raise T4UError(f"РІС…С–Рґ Сѓ twojtenis: {exc}") from None
         self.svc = self._req("GET", f"{self.api}/Clubs/{self.club}/technical-group")["serviceUrl"].rstrip("/")
 
     def my_bookings(self) -> list[dict]:
@@ -380,8 +380,8 @@ class Twojtenis:
         return first
 
     def probe(self, location_id: str, location_name: str) -> str:
-        """Діагностика: справжня ціна на майбутній день, але дата броні — вчора.
-        Сервер спершу перевіряє формат полів; бронь у минулому створити неможливо."""
+        """Р”С–Р°РіРЅРѕСЃС‚РёРєР°: СЃРїСЂР°РІР¶РЅСЏ С†С–РЅР° РЅР° РјР°Р№Р±СѓС‚РЅС–Р№ РґРµРЅСЊ, Р°Р»Рµ РґР°С‚Р° Р±СЂРѕРЅС– вЂ” РІС‡РѕСЂР°.
+        РЎРµСЂРІРµСЂ СЃРїРµСЂС€Сѓ РїРµСЂРµРІС–СЂСЏС” С„РѕСЂРјР°С‚ РїРѕР»С–РІ; Р±СЂРѕРЅСЊ Сѓ РјРёРЅСѓР»РѕРјСѓ СЃС‚РІРѕСЂРёС‚Рё РЅРµРјРѕР¶Р»РёРІРѕ."""
         future = (date.today() + timedelta(days=3)).isoformat()
         past = (date.today() - timedelta(days=1)).isoformat()
         prof, price = self._prepare(location_id, future, "21:00:00", "22:30:00")
@@ -389,9 +389,9 @@ class Twojtenis:
         nulls = [k for k, v in body.items() if v is None] + [f"requests.{k}" for k, v in body["requests"][0].items() if v is None]
         try:
             res = self._req("POST", f"{self.svc}/api/v1/Clubs/{self.club}/bookings", body)
-            return f"НЕОЧІКУВАНО прийнято: {json.dumps(res, ensure_ascii=False)[:300]}"
+            return f"РќР•РћР§Р†РљРЈР’РђРќРћ РїСЂРёР№РЅСЏС‚Рѕ: {json.dumps(res, ensure_ascii=False)[:300]}"
         except T4UError as exc:
-            return f"{exc} | порожні поля: {nulls or '-'}"
+            return f"{exc} | РїРѕСЂРѕР¶РЅС– РїРѕР»СЏ: {nulls or '-'}"
 
     def _prepare(self, location_id: str, day: str, start: str, end: str) -> tuple[dict, dict]:
         me = self._req("GET", f"{self.api}/Players/me")
@@ -402,14 +402,14 @@ class Twojtenis:
                 raise
             prof = self._req("POST", f"{self.api}/Clubs/{self.club}/players/{me['id']}")
         if prof.get("isBlocked"):
-            raise T4UError("ваш профіль у клубі заблоковано")
+            raise T4UError("РІР°С€ РїСЂРѕС„С–Р»СЊ Сѓ РєР»СѓР±С– Р·Р°Р±Р»РѕРєРѕРІР°РЅРѕ")
         calc = self._req("POST", f"{self.api}/Clubs/{self.club}/actions/calculate-price", {
             "clubId": self.club, "locationId": location_id, "start": start, "end": end, "days": [day],
             "multiSportCardsUsed": 0, "medicoverCardsUsed": 0, "playerId": prof["id"],
             "isSmartTennisMatch": False, "isOnlinePayment": False})
         price = (calc.get("prices") or [{}])[0]
         if not price.get("checksum") or price.get("failed"):
-            raise T4UError(f"клуб не дав ціну на цей час: {json.dumps(calc, ensure_ascii=False)[:200]}")
+            raise T4UError(f"РєР»СѓР± РЅРµ РґР°РІ С†С–РЅСѓ РЅР° С†РµР№ С‡Р°СЃ: {json.dumps(calc, ensure_ascii=False)[:200]}")
         return prof, price
 
     def _body(self, prof: dict, price: dict, location_id: str, location_name: str,
@@ -428,7 +428,7 @@ class Twojtenis:
             }],
             "description": "", "bookerId": prof["id"],
             "bookerName": f"{prof.get('firstName', '')} {prof.get('lastName', '')}".strip(),
-            # "comment" не передаємо: сервер чекає там об'єкт коментаря, а застосунок без коментаря поле пропускає
+            # "comment" РЅРµ РїРµСЂРµРґР°С”РјРѕ: СЃРµСЂРІРµСЂ С‡РµРєР°С” С‚Р°Рј РѕР±'С”РєС‚ РєРѕРјРµРЅС‚Р°СЂСЏ, Р° Р·Р°СЃС‚РѕСЃСѓРЅРѕРє Р±РµР· РєРѕРјРµРЅС‚Р°СЂСЏ РїРѕР»Рµ РїСЂРѕРїСѓСЃРєР°С”
             "bookerType": 0, "clubName": self.src.get("name", ""),
             "bookerEmail": prof.get("email"), "bookerPhone": prof.get("phoneNumber"),
             "source": 0, "isSmartTennisMatch": False, "isOnlinePayment": False, "webApp": True,
@@ -452,7 +452,7 @@ def bstate(state: dict) -> dict:
     b.setdefault("bookings", [])   # {id, day, start, end, court, src, uuid, auto, msg}
     b.setdefault("offers", {})     # id -> {day, start, end, court, src, msg, status}
     b.setdefault("skipped_days", [])
-    b.setdefault("failed", [])     # ключі спроб, що не вдалися (не повторюємо)
+    b.setdefault("failed", [])     # РєР»СЋС‡С– СЃРїСЂРѕР±, С‰Рѕ РЅРµ РІРґР°Р»РёСЃСЏ (РЅРµ РїРѕРІС‚РѕСЂСЋС”РјРѕ)
     b.setdefault("seq", 0)
     return b
 
@@ -479,8 +479,8 @@ def plan_for_block(block: dict, bcfg: dict) -> tuple[int, int]:
 def describe(item: dict, sources: dict) -> str:
     src = sources.get(item["src"], {})
     court = item["court"].split(SEP, 1)[-1]
-    return (f"{src.get('name', item['src'])} · {court}\n"
-            f"{fmt_day(item['day'])} {to_hm(item['start'])}–{to_hm(item['end'])}")
+    return (f"{src.get('name', item['src'])} В· {court}\n"
+            f"{fmt_day(item['day'])} {to_hm(item['start'])}вЂ“{to_hm(item['end'])}")
 
 
 def cancel_deadline(item: dict, tz: ZoneInfo, hours: int) -> datetime:
@@ -489,11 +489,11 @@ def cancel_deadline(item: dict, tz: ZoneInfo, hours: int) -> datetime:
 
 
 def do_book(item: dict, sources: dict, court_ids: dict, tz: ZoneInfo) -> tuple[bool, str]:
-    """Повертає (успіх, текст)."""
+    """РџРѕРІРµСЂС‚Р°С” (СѓСЃРїС–С…, С‚РµРєСЃС‚)."""
     src = sources[item["src"]]
     station = court_ids.get(item["court"])
     if not station:
-        return False, "не знаю id корту (зачекайте наступної перевірки)"
+        return False, "РЅРµ Р·РЅР°СЋ id РєРѕСЂС‚Сѓ (Р·Р°С‡РµРєР°Р№С‚Рµ РЅР°СЃС‚СѓРїРЅРѕС— РїРµСЂРµРІС–СЂРєРё)"
     start = datetime.fromisoformat(f"{item['day']}T{to_hm(item['start'])}").replace(tzinfo=tz)
     end = datetime.fromisoformat(f"{item['day']}T{to_hm(item['end'] % (24 * 60))}").replace(tzinfo=tz)
     if item["end"] >= 24 * 60:
@@ -502,7 +502,7 @@ def do_book(item: dict, sources: dict, court_ids: dict, tz: ZoneInfo) -> tuple[b
     try:
         client.login()
         if item["day"] in client.my_days():
-            return False, f"на цей день у вас уже є бронь у {src.get('name', item['src'])}"
+            return False, f"РЅР° С†РµР№ РґРµРЅСЊ Сѓ РІР°СЃ СѓР¶Рµ С” Р±СЂРѕРЅСЊ Сѓ {src.get('name', item['src'])}"
         if isinstance(client, Twojtenis):
             res = client.book(station, item["court"].split(SEP, 1)[-1], item["day"],
                               f"{to_hm(item['start'])}:00", f"{to_hm(item['end'] % (24 * 60))}:00")
@@ -512,7 +512,7 @@ def do_book(item: dict, sources: dict, court_ids: dict, tz: ZoneInfo) -> tuple[b
         return False, str(exc)
     uuid = res.get("public_uuid") or res.get("uuid") or res.get("id")
     if not uuid:
-        return False, f"незрозуміла відповідь сервера: {json.dumps(res, ensure_ascii=False)[:300]}"
+        return False, f"РЅРµР·СЂРѕР·СѓРјС–Р»Р° РІС–РґРїРѕРІС–РґСЊ СЃРµСЂРІРµСЂР°: {json.dumps(res, ensure_ascii=False)[:300]}"
     item["uuid"] = str(uuid)
     item["cost"] = res.get("_cost")
     item["status"] = "active"
@@ -521,12 +521,12 @@ def do_book(item: dict, sources: dict, court_ids: dict, tz: ZoneInfo) -> tuple[b
     extra = ""
     status = str(res.get("status") or "")
     if status and status.upper() not in ("CONFIRMED", "ACTIVE", "CREATED"):
-        extra = f"\nСтатус бронювання: {status} — перевірте в застосунку."
+        extra = f"\nРЎС‚Р°С‚СѓСЃ Р±СЂРѕРЅСЋРІР°РЅРЅСЏ: {status} вЂ” РїРµСЂРµРІС–СЂС‚Рµ РІ Р·Р°СЃС‚РѕСЃСѓРЅРєСѓ."
     return True, extra
 
 
 def needs_cash(it: dict) -> bool:
-    """Бронь tenis4u, де ви організатор і спосіб оплати ще не обрано (статус PENDING_PAYMENT / оплата NONE)."""
+    """Р‘СЂРѕРЅСЊ tenis4u, РґРµ РІРё РѕСЂРіР°РЅС–Р·Р°С‚РѕСЂ С– СЃРїРѕСЃС–Р± РѕРїР»Р°С‚Рё С‰Рµ РЅРµ РѕР±СЂР°РЅРѕ (СЃС‚Р°С‚СѓСЃ PENDING_PAYMENT / РѕРїР»Р°С‚Р° NONE)."""
     pay = str(it.get("my_payment_status") or "").upper()
     status = str(it.get("status") or "").upper()
     role = str(it.get("my_role") or "ORGANIZER").upper()
@@ -535,8 +535,8 @@ def needs_cash(it: dict) -> bool:
 
 
 def verify_bookings(b: dict, sources: dict, now: datetime) -> None:
-    """Раз на годину звіряє активні броні бота в tenis4u: скасовані (клубом чи вами) знімає,
-    щоб день знову можна було бронювати, і прибирає подію з календаря."""
+    """Р Р°Р· РЅР° РіРѕРґРёРЅСѓ Р·РІС–СЂСЏС” Р°РєС‚РёРІРЅС– Р±СЂРѕРЅС– Р±РѕС‚Р° РІ tenis4u: СЃРєР°СЃРѕРІР°РЅС– (РєР»СѓР±РѕРј С‡Рё РІР°РјРё) Р·РЅС–РјР°С”,
+    С‰РѕР± РґРµРЅСЊ Р·РЅРѕРІСѓ РјРѕР¶РЅР° Р±СѓР»Рѕ Р±СЂРѕРЅСЋРІР°С‚Рё, С– РїСЂРёР±РёСЂР°С” РїРѕРґС–СЋ Р· РєР°Р»РµРЅРґР°СЂСЏ."""
     if time.time() - b.get("verified_at", 0) < 3600:
         return
     mine = [x for x in active_bookings(b, now) if (sources.get(x["src"]) or {}).get("type") == "tenis4u"]
@@ -555,14 +555,14 @@ def verify_bookings(b: dict, sources: dict, now: datetime) -> None:
                 alive.add(uid)
                 if needs_cash(it):
                     unpaid.add(uid)
-        for x in mine:  # броні бота «до оплати» -> оплата готівкою
+        for x in mine:  # Р±СЂРѕРЅС– Р±РѕС‚Р° В«РґРѕ РѕРїР»Р°С‚РёВ» -> РѕРїР»Р°С‚Р° РіРѕС‚С–РІРєРѕСЋ
             if x.get("uuid") in unpaid:
                 try:
                     res = client.pay_cash(x["uuid"])
                     if isinstance(res, dict) and (res.get("payment") or {}).get("redirect_url"):
-                        log(f"pay_cash {x['uuid']}: клуб повернув онлайн-оплату")
+                        log(f"pay_cash {x['uuid']}: РєР»СѓР± РїРѕРІРµСЂРЅСѓРІ РѕРЅР»Р°Р№РЅ-РѕРїР»Р°С‚Сѓ")
                     else:
-                        log(f"pay_cash {x['uuid']}: готівка")
+                        log(f"pay_cash {x['uuid']}: РіРѕС‚С–РІРєР°")
                 except T4UError as exc:
                     log(f"pay_cash {x['uuid']}: {exc}")
     except T4UError as exc:
@@ -573,12 +573,12 @@ def verify_bookings(b: dict, sources: dict, now: datetime) -> None:
         if x.get("uuid") and x["uuid"] not in alive:
             x["status"] = "gone"
             remove_calendar(x)
-            tg_send(f"ℹ️ Бронь більше не активна (скасована клубом або вами), прибрав з календаря:\n"
+            tg_send(f"в„№пёЏ Р‘СЂРѕРЅСЊ Р±С–Р»СЊС€Рµ РЅРµ Р°РєС‚РёРІРЅР° (СЃРєР°СЃРѕРІР°РЅР° РєР»СѓР±РѕРј Р°Р±Рѕ РІР°РјРё), РїСЂРёР±СЂР°РІ Р· РєР°Р»РµРЅРґР°СЂСЏ:\n"
                     f"{describe(x, sources)}")
 
 
 def cancel_text(item: dict, tz: ZoneInfo, hours: int) -> str:
-    """«Скасувати безкоштовно можна до …» — з відповіді клубу (twojtenis) або за налаштуванням."""
+    """В«РЎРєР°СЃСѓРІР°С‚Рё Р±РµР·РєРѕС€С‚РѕРІРЅРѕ РјРѕР¶РЅР° РґРѕ вЂ¦В» вЂ” Р· РІС–РґРїРѕРІС–РґС– РєР»СѓР±Сѓ (twojtenis) Р°Р±Рѕ Р·Р° РЅР°Р»Р°С€С‚СѓРІР°РЅРЅСЏРј."""
     dl = None
     if item.get("cancel_until"):
         try:
@@ -587,13 +587,13 @@ def cancel_text(item: dict, tz: ZoneInfo, hours: int) -> str:
         except ValueError:
             dl = None
     dl = dl or cancel_deadline(item, tz, hours)
-    return f"Скасувати безкоштовно можна до {fmt_day(dl.date().isoformat())} {dl:%H:%M}."
+    return f"РЎРєР°СЃСѓРІР°С‚Рё Р±РµР·РєРѕС€С‚РѕРІРЅРѕ РјРѕР¶РЅР° РґРѕ {fmt_day(dl.date().isoformat())} {dl:%H:%M}."
 
 
 def process(blocks: list[dict], cfg: dict, state: dict, now: datetime, tz: ZoneInfo,
             sources: dict, court_ids: dict) -> set[str]:
-    """Викликається з collector.py після кожної перевірки. Повертає дні, про які не треба
-    надсилати звичайні сповіщення (там уже є бронь або пропозиція)."""
+    """Р’РёРєР»РёРєР°С”С‚СЊСЃСЏ Р· collector.py РїС–СЃР»СЏ РєРѕР¶РЅРѕС— РїРµСЂРµРІС–СЂРєРё. РџРѕРІРµСЂС‚Р°С” РґРЅС–, РїСЂРѕ СЏРєС– РЅРµ С‚СЂРµР±Р°
+    РЅР°РґСЃРёР»Р°С‚Рё Р·РІРёС‡Р°Р№РЅС– СЃРїРѕРІС–С‰РµРЅРЅСЏ (С‚Р°Рј СѓР¶Рµ С” Р±СЂРѕРЅСЊ Р°Р±Рѕ РїСЂРѕРїРѕР·РёС†С–СЏ)."""
     bcfg = cfg.get("booking") or {}
     if not bcfg.get("enabled"):
         return set()
@@ -605,7 +605,7 @@ def process(blocks: list[dict], cfg: dict, state: dict, now: datetime, tz: ZoneI
             allowed.add(short)
         elif env and not b.get(f"warned_{env}"):
             b[f"warned_{env}"] = True
-            tg_send(f"⚠️ Автобронювання для {short} увімкнене, але немає секрету {env} у GitHub.")
+            tg_send(f"вљ пёЏ РђРІС‚РѕР±СЂРѕРЅСЋРІР°РЅРЅСЏ РґР»СЏ {short} СѓРІС–РјРєРЅРµРЅРµ, Р°Р»Рµ РЅРµРјР°С” СЃРµРєСЂРµС‚Сѓ {env} Сѓ GitHub.")
     if not allowed:
         return set()
 
@@ -613,7 +613,7 @@ def process(blocks: list[dict], cfg: dict, state: dict, now: datetime, tz: ZoneI
     if not os.environ.get("PADEL_SELFTEST"):
         verify_bookings(b, sources, now)
     booked_days = {x["day"] for x in active_bookings(b, now)}
-    # прибираємо старе
+    # РїСЂРёР±РёСЂР°С”РјРѕ СЃС‚Р°СЂРµ
     b["offers"] = {k: o for k, o in b["offers"].items() if o["day"] >= today}
     b["skipped_days"] = [d for d in b["skipped_days"] if d >= today]
     b["failed"] = [k for k in b["failed"] if k[:10] >= today]
@@ -630,10 +630,10 @@ def process(blocks: list[dict], cfg: dict, state: dict, now: datetime, tz: ZoneI
             open_offer_days.add(o["day"])
         else:
             o["status"] = "gone"
-            tg_edit(o.get("msg"), "⌛ Слот уже зайняли:\n" + describe(o, sources))
+            tg_edit(o.get("msg"), "вЊ› РЎР»РѕС‚ СѓР¶Рµ Р·Р°Р№РЅСЏР»Рё:\n" + describe(o, sources))
 
     quiet = booked_days | open_offer_days | set(b["skipped_days"])
-    # кандидати: найраніший блок у кожен день
+    # РєР°РЅРґРёРґР°С‚Рё: РЅР°Р№СЂР°РЅС–С€РёР№ Р±Р»РѕРє Сѓ РєРѕР¶РµРЅ РґРµРЅСЊ
     by_day: dict[str, dict] = {}
     for bl in sorted(blocks, key=lambda x: (x["day"], x["start"], x["court"])):
         src = bl["court"].split(SEP, 1)[0]
@@ -660,25 +660,25 @@ def process(blocks: list[dict], cfg: dict, state: dict, now: datetime, tz: ZoneI
             if ok:
                 b["bookings"].append(item)
                 quiet.add(day)
-                cost = f"\nЦіна: {item['cost']:g} zł (оплата в клубі)" if item.get("cost") else ""
+                cost = f"\nР¦С–РЅР°: {item['cost']:g} zЕ‚ (РѕРїР»Р°С‚Р° РІ РєР»СѓР±С–)" if item.get("cost") else ""
                 item["msg"] = tg_send(
-                    f"✅ Забронював корт\n{describe(item, sources)}{cost}\n"
+                    f"вњ… Р—Р°Р±СЂРѕРЅСЋРІР°РІ РєРѕСЂС‚\n{describe(item, sources)}{cost}\n"
                     f"{cancel_text(item, tz, cancel_h)}{extra}\n"
                     f"{my_url(sources[item['src']])}",
-                    [[("❌ Скасувати бронь", f"c:{item['id']}")]])
+                    [[("вќЊ РЎРєР°СЃСѓРІР°С‚Рё Р±СЂРѕРЅСЊ", f"c:{item['id']}")]])
                 send_calendar(item, sources[item["src"]], tz, f"{cost.strip()}\n{cancel_text(item, tz, cancel_h)}")
             else:
                 b["failed"].append(item["key"])
-                tg_send(f"⚠️ Не вдалося забронювати\n{describe(item, sources)}\nПричина: {extra}")
+                tg_send(f"вљ пёЏ РќРµ РІРґР°Р»РѕСЃСЏ Р·Р°Р±СЂРѕРЅСЋРІР°С‚Рё\n{describe(item, sources)}\nРџСЂРёС‡РёРЅР°: {extra}")
             continue
-        # мало часу до гри (або досягнуто ліміту автоброней) -> питаємо
+        # РјР°Р»Рѕ С‡Р°СЃСѓ РґРѕ РіСЂРё (Р°Р±Рѕ РґРѕСЃСЏРіРЅСѓС‚Рѕ Р»С–РјС–С‚Сѓ Р°РІС‚РѕР±СЂРѕРЅРµР№) -> РїРёС‚Р°С”РјРѕ
         oid = next_id(b)
         item["status"] = "open"
-        why = "До гри менше ніж " + f"{auto_hours} год" if lead_h < auto_hours else f"Уже є {n_auto} автоброні"
+        why = "Р”Рѕ РіСЂРё РјРµРЅС€Рµ РЅС–Р¶ " + f"{auto_hours} РіРѕРґ" if lead_h < auto_hours else f"РЈР¶Рµ С” {n_auto} Р°РІС‚РѕР±СЂРѕРЅС–"
         item["msg"] = tg_send(
-            f"🎾 Вільний корт. Забронювати?\n{describe(item, sources)}\n"
-            f"({why}, тому питаю. Скасувати пізніше ніж за {cancel_h} год до гри може бути неможливо.)",
-            [[("✅ Забронювати", f"b:{oid}"), ("Пропустити", f"s:{oid}")]])
+            f"рџЋѕ Р’С–Р»СЊРЅРёР№ РєРѕСЂС‚. Р—Р°Р±СЂРѕРЅСЋРІР°С‚Рё?\n{describe(item, sources)}\n"
+            f"({why}, С‚РѕРјСѓ РїРёС‚Р°СЋ. РЎРєР°СЃСѓРІР°С‚Рё РїС–Р·РЅС–С€Рµ РЅС–Р¶ Р·Р° {cancel_h} РіРѕРґ РґРѕ РіСЂРё РјРѕР¶Рµ Р±СѓС‚Рё РЅРµРјРѕР¶Р»РёРІРѕ.)",
+            [[("вњ… Р—Р°Р±СЂРѕРЅСЋРІР°С‚Рё", f"b:{oid}"), ("РџСЂРѕРїСѓСЃС‚РёС‚Рё", f"s:{oid}")]])
         b["offers"][oid] = item
         quiet.add(day)
     return quiet
@@ -703,16 +703,16 @@ def handle_callback(cq: dict, state: dict, cfg: dict, tz: ZoneInfo) -> None:
     if kind in ("b", "s"):
         o = b["offers"].get(oid)
         if not o or o.get("status") != "open":
-            tg_edit(mid, (msg.get("text") or "") + "\n\n(пропозиція вже неактуальна)")
+            tg_edit(mid, (msg.get("text") or "") + "\n\n(РїСЂРѕРїРѕР·РёС†С–СЏ РІР¶Рµ РЅРµР°РєС‚СѓР°Р»СЊРЅР°)")
             return
         if kind == "s":
             o["status"] = "skipped"
             b["skipped_days"].append(o["day"])
-            tg_edit(mid, "Пропущено:\n" + describe(o, sources))
+            tg_edit(mid, "РџСЂРѕРїСѓС‰РµРЅРѕ:\n" + describe(o, sources))
             return
         if any(x["day"] == o["day"] for x in active_bookings(b, now)):
             o["status"] = "gone"
-            tg_edit(mid, "На цей день уже є бронь:\n" + describe(o, sources))
+            tg_edit(mid, "РќР° С†РµР№ РґРµРЅСЊ СѓР¶Рµ С” Р±СЂРѕРЅСЊ:\n" + describe(o, sources))
             return
         o["id"] = oid
         o["auto"] = False
@@ -720,34 +720,34 @@ def handle_callback(cq: dict, state: dict, cfg: dict, tz: ZoneInfo) -> None:
         if ok:
             o["status"] = "booked"
             b["bookings"].append(dict(o, status="active", msg=mid))
-            cost = f"\nЦіна: {o['cost']:g} zł (оплата в клубі)" if o.get("cost") else ""
-            tg_edit(mid, f"✅ Заброньовано\n{describe(o, sources)}{cost}\n"
+            cost = f"\nР¦С–РЅР°: {o['cost']:g} zЕ‚ (РѕРїР»Р°С‚Р° РІ РєР»СѓР±С–)" if o.get("cost") else ""
+            tg_edit(mid, f"вњ… Р—Р°Р±СЂРѕРЅСЊРѕРІР°РЅРѕ\n{describe(o, sources)}{cost}\n"
                          f"{cancel_text(o, tz, (cfg.get('booking') or {}).get('cancel_limit_hours', 24))}"
                          f"{extra}\n{my_url(sources[o['src']])}",
-                    [[("❌ Скасувати бронь", f"c:{oid}")]])
+                    [[("вќЊ РЎРєР°СЃСѓРІР°С‚Рё Р±СЂРѕРЅСЊ", f"c:{oid}")]])
             send_calendar(o, sources[o["src"]], tz, f"{cost.strip()}\n"
                           f"{cancel_text(o, tz, (cfg.get('booking') or {}).get('cancel_limit_hours', 24))}")
         else:
             o["status"] = "failed"
-            tg_edit(mid, f"⚠️ Не вдалося забронювати\n{describe(o, sources)}\nПричина: {extra}")
+            tg_edit(mid, f"вљ пёЏ РќРµ РІРґР°Р»РѕСЃСЏ Р·Р°Р±СЂРѕРЅСЋРІР°С‚Рё\n{describe(o, sources)}\nРџСЂРёС‡РёРЅР°: {extra}")
         return
 
     if kind == "c":
         x = next((x for x in b["bookings"] if x.get("id") == oid and x.get("status") == "active"), None)
         if not x:
-            tg_edit(mid, (msg.get("text") or "") + "\n\n(бронь не знайдено або вже скасовано)")
+            tg_edit(mid, (msg.get("text") or "") + "\n\n(Р±СЂРѕРЅСЊ РЅРµ Р·РЅР°Р№РґРµРЅРѕ Р°Р±Рѕ РІР¶Рµ СЃРєР°СЃРѕРІР°РЅРѕ)")
             return
         try:
             client = client_for(sources[x["src"]])
             client.login()
             client.cancel(x["uuid"])
         except T4UError as exc:
-            tg_send(f"⚠️ Не вдалося скасувати бронь\n{describe(x, sources)}\nПричина: {exc}\n"
-                    f"Скасуйте в застосунку: {my_url(sources[x['src']])}")
+            tg_send(f"вљ пёЏ РќРµ РІРґР°Р»РѕСЃСЏ СЃРєР°СЃСѓРІР°С‚Рё Р±СЂРѕРЅСЊ\n{describe(x, sources)}\nРџСЂРёС‡РёРЅР°: {exc}\n"
+                    f"РЎРєР°СЃСѓР№С‚Рµ РІ Р·Р°СЃС‚РѕСЃСѓРЅРєСѓ: {my_url(sources[x['src']])}")
             return
         x["status"] = "cancelled"
-        b["skipped_days"].append(x["day"])  # не бронювати цей день знову автоматично
-        tg_edit(mid, "🗑 Бронь скасовано\n" + describe(x, sources))
+        b["skipped_days"].append(x["day"])  # РЅРµ Р±СЂРѕРЅСЋРІР°С‚Рё С†РµР№ РґРµРЅСЊ Р·РЅРѕРІСѓ Р°РІС‚РѕРјР°С‚РёС‡РЅРѕ
+        tg_edit(mid, "рџ—‘ Р‘СЂРѕРЅСЊ СЃРєР°СЃРѕРІР°РЅРѕ\n" + describe(x, sources))
         remove_calendar(x)
 
 
@@ -761,7 +761,7 @@ def save_state(state: dict) -> None:
 
 
 def poll(seconds: int) -> None:
-    """Слухає натискання кнопок seconds секунд (long polling Telegram)."""
+    """РЎР»СѓС…Р°С” РЅР°С‚РёСЃРєР°РЅРЅСЏ РєРЅРѕРїРѕРє seconds СЃРµРєСѓРЅРґ (long polling Telegram)."""
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     tz = ZoneInfo(cfg["timezone"])
     if not os.environ.get("TELEGRAM_BOT_TOKEN") or not (cfg.get("booking") or {}).get("enabled"):
@@ -793,7 +793,7 @@ def poll(seconds: int) -> None:
 
 
 def check() -> int:
-    """Ручна перевірка: вхід і дні з вашими бронями в кожному клубі. Нічого не бронює."""
+    """Р СѓС‡РЅР° РїРµСЂРµРІС–СЂРєР°: РІС…С–Рґ С– РґРЅС– Р· РІР°С€РёРјРё Р±СЂРѕРЅСЏРјРё РІ РєРѕР¶РЅРѕРјСѓ РєР»СѓР±С–. РќС–С‡РѕРіРѕ РЅРµ Р±СЂРѕРЅСЋС”."""
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     rc = 0
     for src in cfg["sources"]:
@@ -802,17 +802,17 @@ def check() -> int:
         client = client_for(src)
         try:
             client.login()
-            print(f"{src['short']}: вхід OK; дні з вашими бронями: {sorted(client.my_days()) or '-'}")
+            print(f"{src['short']}: РІС…С–Рґ OK; РґРЅС– Р· РІР°С€РёРјРё Р±СЂРѕРЅСЏРјРё: {sorted(client.my_days()) or '-'}")
         except T4UError as exc:
-            print(f"{src['short']}: ПОМИЛКА {exc}")
+            print(f"{src['short']}: РџРћРњРР›РљРђ {exc}")
             rc = 1
     return rc
 
 
-# ---------------------------------------------------------------- синхронізація з календарем
+# ---------------------------------------------------------------- СЃРёРЅС…СЂРѕРЅС–Р·Р°С†С–СЏ Р· РєР°Р»РµРЅРґР°СЂРµРј
 
 def _dt_from(it: dict, keys: tuple[str, ...], day_hint: str = "") -> datetime | None:
-    """Дістає дату-час із броні tenis4u, у якому б вигляді вона не була."""
+    """Р”С–СЃС‚Р°С” РґР°С‚Сѓ-С‡Р°СЃ С–Р· Р±СЂРѕРЅС– tenis4u, Сѓ СЏРєРѕРјСѓ Р± РІРёРіР»СЏРґС– РІРѕРЅР° РЅРµ Р±СѓР»Р°."""
     for k in keys:
         v = it.get(k)
         if isinstance(v, str) and len(v) >= 16:
@@ -838,12 +838,12 @@ def _name_from(it: dict, keys: tuple[str, ...]) -> str:
 
 
 def _shape(it: dict) -> str:
-    """Лише назви полів (без значень) - для діагностики в публічному журналі."""
+    """Р›РёС€Рµ РЅР°Р·РІРё РїРѕР»С–РІ (Р±РµР· Р·РЅР°С‡РµРЅСЊ) - РґР»СЏ РґС–Р°РіРЅРѕСЃС‚РёРєРё РІ РїСѓР±Р»С–С‡РЅРѕРјСѓ Р¶СѓСЂРЅР°Р»С–."""
     return ", ".join(f"{k}{'{' + ','.join(v.keys()) + '}' if isinstance(v, dict) else ''}" for k, v in it.items())
 
 
 def collect_my_bookings(cfg: dict, tz: ZoneInfo) -> list[tuple[dict, dict, str]]:
-    """[(item для make_ics, src, примітка)] усіх ваших майбутніх броней у клубах з config.json."""
+    """[(item РґР»СЏ make_ics, src, РїСЂРёРјС–С‚РєР°)] СѓСЃС–С… РІР°С€РёС… РјР°Р№Р±СѓС‚РЅС–С… Р±СЂРѕРЅРµР№ Сѓ РєР»СѓР±Р°С… Р· config.json."""
     now = datetime.now(tz)
     out: list[tuple[dict, dict, str]] = []
     seen: set[tuple] = set()
@@ -856,7 +856,7 @@ def collect_my_bookings(cfg: dict, tz: ZoneInfo) -> list[tuple[dict, dict, str]]
         for path, it in client.my_reservations():
             if path not in shown:
                 shown.add(path)
-                print(f"tenis4u {path}: поля броні: {_shape(it)}")
+                print(f"tenis4u {path}: РїРѕР»СЏ Р±СЂРѕРЅС–: {_shape(it)}")
             status = str(it.get("status") or it.get("reservation_status") or "").upper()
             if any(s in status for s in ("CANCEL", "DELETED", "REJECT")):
                 continue
@@ -868,7 +868,7 @@ def collect_my_bookings(cfg: dict, tz: ZoneInfo) -> list[tuple[dict, dict, str]]
             start = _dt_from(it, ("start_time", "starts_at", "startTime", "start", "begin", "begin_time"), day)
             end = _dt_from(it, ("end_time", "ends_at", "endTime", "end", "end_hour"), day)
             if not start or not end:
-                print(f"tenis4u {path}: не зміг розібрати час броні")
+                print(f"tenis4u {path}: РЅРµ Р·РјС–Рі СЂРѕР·С–Р±СЂР°С‚Рё С‡Р°СЃ Р±СЂРѕРЅС–")
                 continue
             start = start.astimezone(tz) if start.tzinfo else start.replace(tzinfo=tz)
             end = end.astimezone(tz) if end.tzinfo else end.replace(tzinfo=tz)
@@ -882,7 +882,7 @@ def collect_my_bookings(cfg: dict, tz: ZoneInfo) -> list[tuple[dict, dict, str]]
                 src = next((s for s in t4u_srcs if club and (s["name"].lower() in club.lower()
                                                             or club.lower() in s["name"].lower())), None)
             src = src or {"short": "tenis4u", "name": club or "tenis4u", "type": "tenis4u"}
-            station = _name_from(it, ("station_name", "stationName", "station")) or "корт"
+            station = _name_from(it, ("station_name", "stationName", "station")) or "РєРѕСЂС‚"
             station = station.split(": ", 1)[-1]
             station = station[:1].upper() + station[1:]
             key = (start.isoformat(), src["short"])
@@ -894,7 +894,7 @@ def collect_my_bookings(cfg: dict, tz: ZoneInfo) -> list[tuple[dict, dict, str]]
                     "end": start.hour * 60 + start.minute + int((end - start).total_seconds() // 60),
                     "court": f"{src['short']}{SEP}{station}", "src": src["short"], "uuid": str(uid) if uid else None}
             price = it.get("total_price") or it.get("price") or it.get("cost")
-            out.append((item, src, f"Ціна: {price} zł" if price else ""))
+            out.append((item, src, f"Р¦С–РЅР°: {price} zЕ‚" if price else ""))
 
     tt_srcs = [s for s in cfg["sources"] if s.get("type") == "twojtenis" and s.get("enabled", True)]
     if tt_srcs and os.environ.get("TWOJTENIS_LOGIN"):
@@ -910,10 +910,10 @@ def collect_my_bookings(cfg: dict, tz: ZoneInfo) -> list[tuple[dict, dict, str]]
             src = next((s for s in tt_srcs if s["club_id"] == b.get("clubId")), None) \
                 or {"short": "twojtenis", "name": b.get("clubName") or "twojtenis", "type": "twojtenis"}
             item = {"day": day, "start": s_min, "end": e_min, "src": src["short"],
-                    "court": f"{src['short']}{SEP}{b.get('locationName') or 'корт'}", "uuid": b.get("id")}
+                    "court": f"{src['short']}{SEP}{b.get('locationName') or 'РєРѕСЂС‚'}", "uuid": b.get("id")}
             note = []
             if b.get("price"):
-                note.append(f"Ціна: {b['price']} zł")
+                note.append(f"Р¦С–РЅР°: {b['price']} zЕ‚")
             if b.get("cancelUntil"):
                 item["cancel_until"] = str(b["cancelUntil"])
                 note.append(cancel_text(item, tz, 24))
@@ -922,19 +922,19 @@ def collect_my_bookings(cfg: dict, tz: ZoneInfo) -> list[tuple[dict, dict, str]]
 
 
 PTMATES_URL = "https://ptmates.com"
-BLONIA_REFRESH_SEC = 3 * 3600  # як часто перечитувати броні Błonia (вхід через браузер, тож не частіше)
+BLONIA_REFRESH_SEC = 3 * 3600  # СЏРє С‡Р°СЃС‚Рѕ РїРµСЂРµС‡РёС‚СѓРІР°С‚Рё Р±СЂРѕРЅС– BЕ‚onia (РІС…С–Рґ С‡РµСЂРµР· Р±СЂР°СѓР·РµСЂ, С‚РѕР¶ РЅРµ С‡Р°СЃС‚С–С€Рµ)
 
 
 _PT_CSRF: list[str] = []
 
 
 def _pt_csrf() -> str:
-    """CSRF-токен, який сайт кладе в <meta name="csrf-token"> (так само робить сам браузер)."""
+    """CSRF-С‚РѕРєРµРЅ, СЏРєРёР№ СЃР°Р№С‚ РєР»Р°РґРµ РІ <meta name="csrf-token"> (С‚Р°Рє СЃР°РјРѕ СЂРѕР±РёС‚СЊ СЃР°Рј Р±СЂР°СѓР·РµСЂ)."""
     if not _PT_CSRF:
         import re
         req = urllib.request.Request(PTMATES_URL + "/calendar", headers={
             "Cookie": os.environ.get("PTMATES_COOKIE", "").strip(), "User-Agent": "padel-slot-monitor/1.0"})
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             html = resp.read().decode("utf-8", "replace")
         m = re.search(r'<meta[^>]+name=["\']csrf-token["\'][^>]+content=["\']([^"\']+)', html) or \
             re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']csrf-token', html)
@@ -943,7 +943,7 @@ def _pt_csrf() -> str:
 
 
 def _pt(method: str, path: str, body=None):
-    """Запит до PTmates з вашою сесією (секрет PTMATES_COOKIE)."""
+    """Р—Р°РїРёС‚ РґРѕ PTmates Р· РІР°С€РѕСЋ СЃРµСЃС–С”СЋ (СЃРµРєСЂРµС‚ PTMATES_COOKIE)."""
     data = json.dumps(body).encode("utf-8") if body is not None else None
     headers = {"Cookie": os.environ.get("PTMATES_COOKIE", "").strip(), "Accept": "application/json",
                "Content-Type": "application/json", "User-Agent": "padel-slot-monitor/1.0"}
@@ -951,7 +951,7 @@ def _pt(method: str, path: str, body=None):
         headers.update({"X-CSRF-Token": _pt_csrf(), "Origin": PTMATES_URL, "Referer": f"{PTMATES_URL}/calendar"})
     req = urllib.request.Request(PTMATES_URL + path, data=data, method=method, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
             raw = resp.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         raise T4UError(f"PTmates HTTP {exc.code} {method} {path}: {exc.read()[:200]!r}") from None
@@ -959,13 +959,13 @@ def _pt(method: str, path: str, body=None):
 
 
 def _norm(s: str) -> str:
-    return str(s or "").lower().replace("ł", "l").replace("ó", "o").replace("ń", "n").strip()
+    return str(s or "").lower().replace("Е‚", "l").replace("Гі", "o").replace("Е„", "n").strip()
 
 
 def ptmates_publish(data: dict, state: dict, cfg: dict, tz: ZoneInfo) -> bool:
-    """1) броні Błonia -> ігри в PTmates («Blonia Sport», без клубу);
-    2) ігри з tenis4u, якими ви керуєте, -> публічні; 3) у всі ваші ігри додає вас учасником.
-    Повертає True, якщо щось змінив (тоді календар треба перечитати)."""
+    """1) Р±СЂРѕРЅС– BЕ‚onia -> С–РіСЂРё РІ PTmates (В«Blonia SportВ», Р±РµР· РєР»СѓР±Сѓ);
+    2) С–РіСЂРё Р· tenis4u, СЏРєРёРјРё РІРё РєРµСЂСѓС”С‚Рµ, -> РїСѓР±Р»С–С‡РЅС–; 3) Сѓ РІСЃС– РІР°С€С– С–РіСЂРё РґРѕРґР°С” РІР°СЃ СѓС‡Р°СЃРЅРёРєРѕРј.
+    РџРѕРІРµСЂС‚Р°С” True, СЏРєС‰Рѕ С‰РѕСЃСЊ Р·РјС–РЅРёРІ (С‚РѕРґС– РєР°Р»РµРЅРґР°СЂ С‚СЂРµР±Р° РїРµСЂРµС‡РёС‚Р°С‚Рё)."""
     me = str(data.get("currentUserContactId") or "")
     if not me:
         return False
@@ -973,7 +973,7 @@ def ptmates_publish(data: dict, state: dict, cfg: dict, tz: ZoneInfo) -> bool:
     pm = state.setdefault("ptmates", {"hash": {}})
     changed = False
 
-    # --- Błonia: ваші броні з twojtenis (кеш на 3 год; раніше, якщо бот щойно забронював Błonia)
+    # --- BЕ‚onia: РІР°С€С– Р±СЂРѕРЅС– Р· twojtenis (РєРµС€ РЅР° 3 РіРѕРґ; СЂР°РЅС–С€Рµ, СЏРєС‰Рѕ Р±РѕС‚ С‰РѕР№РЅРѕ Р·Р°Р±СЂРѕРЅСЋРІР°РІ BЕ‚onia)
     tt_src = next((s for s in cfg["sources"] if s.get("type") == "twojtenis" and s.get("enabled", True)), None)
     cache = pm.setdefault("blonia", {"ts": 0, "items": []})
     bot_new = any(x.get("src") == (tt_src or {}).get("short") and x.get("uuid") not in
@@ -989,7 +989,7 @@ def ptmates_publish(data: dict, state: dict, cfg: dict, tz: ZoneInfo) -> bool:
             cache["ts"] = time.time()
         except T4UError as exc:
             log(f"ptmates/blonia: {exc}")
-    created = pm.setdefault("created", {})  # twojtenis id -> так, гру в PTmates уже створено
+    created = pm.setdefault("created", {})  # twojtenis id -> С‚Р°Рє, РіСЂСѓ РІ PTmates СѓР¶Рµ СЃС‚РІРѕСЂРµРЅРѕ
     existing = {(str(r.get("starts_at"))[:16], _norm(r.get("title"))) for r in data["reservations"]}
     for b in cache["items"]:
         start = f"{b['day']}T{b['start']}"
@@ -1005,13 +1005,13 @@ def ptmates_publish(data: dict, state: dict, cfg: dict, tz: ZoneInfo) -> bool:
                                               "club_id": None})
             created[b["id"]] = "created"
             changed = True
-            print(f"ptmates: створено гру Błonia {start} {b['court']}")
+            print(f"ptmates: СЃС‚РІРѕСЂРµРЅРѕ РіСЂСѓ BЕ‚onia {start} {b['court']}")
         except T4UError as exc:
             log(f"ptmates/custom: {exc}")
-    if changed:  # перечитуємо, щоб нові ігри пройшли крок «додати вас учасником»
+    if changed:  # РїРµСЂРµС‡РёС‚СѓС”РјРѕ, С‰РѕР± РЅРѕРІС– С–РіСЂРё РїСЂРѕР№С€Р»Рё РєСЂРѕРє В«РґРѕРґР°С‚Рё РІР°СЃ СѓС‡Р°СЃРЅРёРєРѕРјВ»
         data.update(_pt("GET", "/api/calendar/bootstrap"))
 
-    # --- публічність і участь
+    # --- РїСѓР±Р»С–С‡РЅС–СЃС‚СЊ С– СѓС‡Р°СЃС‚СЊ
     for r in data["reservations"]:
         rid = str(r.get("id"))
         if not r.get("can_manage") or str(r.get("ends_at", ""))[:19] <= now.strftime("%Y-%m-%dT%H:%M:%S"):
@@ -1021,7 +1021,7 @@ def ptmates_publish(data: dict, state: dict, cfg: dict, tz: ZoneInfo) -> bool:
         players = list(data.get("playersByReservationId", {}).get(rid) or [])
         privacy = str(data.get("privacyByReservationId", {}).get(rid) or "PERSONAL").upper()
         from_t4u = str(r.get("source") or "").upper() == "API"
-        want_public = from_t4u or "blonia" in _norm(r.get("title"))  # tenis4u і Blonia Sport -> публічні
+        want_public = from_t4u or "blonia" in _norm(r.get("title"))  # tenis4u С– Blonia Sport -> РїСѓР±Р»С–С‡РЅС–
         if me in players and (privacy == "PUBLIC" or not want_public):
             continue
         invites = data.get("invitesByReservationId", {}).get(rid) or []
@@ -1042,15 +1042,15 @@ def ptmates_publish(data: dict, state: dict, cfg: dict, tz: ZoneInfo) -> bool:
             _pt("POST", f"/api/reservations/{rid}/manage", body)
             changed = True
             print(f"ptmates: {r.get('title')} {str(r.get('starts_at'))[:16]}: "
-                  f"{'публічна, ' if want_public and privacy != 'PUBLIC' else ''}учасник {'додано' if me not in players else 'є'}")
+                  f"{'РїСѓР±Р»С–С‡РЅР°, ' if want_public and privacy != 'PUBLIC' else ''}СѓС‡Р°СЃРЅРёРє {'РґРѕРґР°РЅРѕ' if me not in players else 'С”'}")
         except T4UError as exc:
             log(f"ptmates/manage {rid[:8]}: {exc}")
     return changed
 
 
 def ptmates_sync() -> int:
-    """Ігри з календаря PTmates (свої і ті, куди вас запросили) -> календар iCloud.
-    Додає/оновлює майбутні, прибирає скасовані або відхилені. Кука сесії - секрет PTMATES_COOKIE."""
+    """Р†РіСЂРё Р· РєР°Р»РµРЅРґР°СЂСЏ PTmates (СЃРІРѕС— С– С‚С–, РєСѓРґРё РІР°СЃ Р·Р°РїСЂРѕСЃРёР»Рё) -> РєР°Р»РµРЅРґР°СЂ iCloud.
+    Р”РѕРґР°С”/РѕРЅРѕРІР»СЋС” РјР°Р№Р±СѓС‚РЅС–, РїСЂРёР±РёСЂР°С” СЃРєР°СЃРѕРІР°РЅС– Р°Р±Рѕ РІС–РґС…РёР»РµРЅС–. РљСѓРєР° СЃРµСЃС–С— - СЃРµРєСЂРµС‚ PTMATES_COOKIE."""
     import hashlib
     import icloud_cal
     cookie = os.environ.get("PTMATES_COOKIE", "").strip()
@@ -1067,24 +1067,24 @@ def ptmates_sync() -> int:
             raw = resp.read().decode("utf-8")
         data = json.loads(raw)
         if not isinstance(data.get("reservations"), list):
-            raise ValueError("немає reservations")
-    except Exception as exc:  # noqa: BLE001 - сесія закінчилась (редирект на /login) або сайт недоступний
+            raise ValueError("РЅРµРјР°С” reservations")
+    except Exception as exc:  # noqa: BLE001 - СЃРµСЃС–СЏ Р·Р°РєС–РЅС‡РёР»Р°СЃСЊ (СЂРµРґРёСЂРµРєС‚ РЅР° /login) Р°Р±Рѕ СЃР°Р№С‚ РЅРµРґРѕСЃС‚СѓРїРЅРёР№
         log(f"ptmates: {type(exc).__name__}: {str(exc)[:150]}")
         n = pm.get("fails", 0) + 1
         pm["fails"] = n
         if n == 3 and not pm.get("warned"):
             pm["warned"] = True
-            tg_send("⚠️ PTmates: не вдається прочитати календар (схоже, сесія закінчилась). "
-                    "Увійдіть на ptmates.com і оновіть секрет PTMATES_COOKIE.")
+            tg_send("вљ пёЏ PTmates: РЅРµ РІРґР°С”С‚СЊСЃСЏ РїСЂРѕС‡РёС‚Р°С‚Рё РєР°Р»РµРЅРґР°СЂ (СЃС…РѕР¶Рµ, СЃРµСЃС–СЏ Р·Р°РєС–РЅС‡РёР»Р°СЃСЊ). "
+                    "РЈРІС–Р№РґС–С‚СЊ РЅР° ptmates.com С– РѕРЅРѕРІС–С‚СЊ СЃРµРєСЂРµС‚ PTMATES_COOKIE.")
         save_state(state)
         return 1
     pm.pop("fails", None)
     pm.pop("warned", None)
     try:
         ptmates_publish(data, state, cfg, tz)
-    except Exception as exc:  # noqa: BLE001 - публікація не має ламати календар
+    except Exception as exc:  # noqa: BLE001 - РїСѓР±Р»С–РєР°С†С–СЏ РЅРµ РјР°С” Р»Р°РјР°С‚Рё РєР°Р»РµРЅРґР°СЂ
         log(f"ptmates_publish: {type(exc).__name__}: {exc}")
-    # гра Błonia в PTmates = бронь twojtenis: та сама подія в календарі (без дубліката)
+    # РіСЂР° BЕ‚onia РІ PTmates = Р±СЂРѕРЅСЊ twojtenis: С‚Р° СЃР°РјР° РїРѕРґС–СЏ РІ РєР°Р»РµРЅРґР°СЂС– (Р±РµР· РґСѓР±Р»С–РєР°С‚Р°)
     blonia_uid = {f"{b['day']}T{b['start']}": b["id"] for b in (pm.get("blonia") or {}).get("items", [])}
 
     now = datetime.now(tz)
@@ -1108,68 +1108,68 @@ def ptmates_sync() -> int:
         status = str(r.get("status") or "").upper()
         part = str(r.get("participation_status") or "").upper()
         dead = any(s in status for s in ("CANCEL", "DELETED", "REJECT")) or part in ("DECLINED", "REJECTED", "LEFT", "REMOVED")
-        club = str(r.get("title") or "Падел").strip()
+        club = str(r.get("title") or "РџР°РґРµР»").strip()
         station = str(r.get("station_name") or "").strip()
         station = station[:1].upper() + station[1:]
         day = start.date().isoformat()
-        label = f"{fmt_day(day)} {start:%H:%M}–{end:%H:%M} · {club}"
+        label = f"{fmt_day(day)} {start:%H:%M}вЂ“{end:%H:%M} В· {club}"
         if dead:
             if rid in pm["hash"]:
                 cal = cal or icloud_cal.find_calendar()
                 icloud_cal.delete_event(uid, cal)
                 pm["hash"].pop(rid, None)
-                changes.append(f"🗑 {label}")
+                changes.append(f"рџ—‘ {label}")
             continue
         owner = str(r.get("owner_name") or "").strip()
         note = []
         if owner and owner != me:
-            note.append(f"Бронював: {owner}")
+            note.append(f"Р‘СЂРѕРЅСЋРІР°РІ: {owner}")
         if r.get("price"):
-            note.append(f"Ціна: {r['price']} zł")
+            note.append(f"Р¦С–РЅР°: {r['price']} zЕ‚")
         item = {"day": day, "start": start.hour * 60 + start.minute,
                 "end": start.hour * 60 + start.minute + int((end - start).total_seconds() // 60),
-                "court": f"PTmates{SEP}{station or 'корт'}", "src": "PTmates", "uuid": rid}
+                "court": f"PTmates{SEP}{station or 'РєРѕСЂС‚'}", "src": "PTmates", "uuid": rid}
         src = {"name": club, "type": "ptmates", "booking_url": f"{PTMATES_URL}/calendar"}
         h = hashlib.sha1(json.dumps([item, club, note], ensure_ascii=False).encode()).hexdigest()
         if (pm["hash"].get(rid) or {}).get("h") == h:
             continue
         cal = cal or icloud_cal.find_calendar()
         icloud_cal.put_event(uid, make_ics(item, src, tz, "\n".join(note)), cal)
-        changes.append(("✏️ " if rid in pm["hash"] else "➕ ") + label + (f" (бронював {owner})" if owner and owner != me else ""))
+        changes.append(("вњЏпёЏ " if rid in pm["hash"] else "вћ• ") + label + (f" (Р±СЂРѕРЅСЋРІР°РІ {owner})" if owner and owner != me else ""))
         pm["hash"][rid] = {"h": h, "end": end.isoformat()}
-    # ігри, що зникли з PTmates до свого початку (видалені) -> прибираємо з календаря
+    # С–РіСЂРё, С‰Рѕ Р·РЅРёРєР»Рё Р· PTmates РґРѕ СЃРІРѕРіРѕ РїРѕС‡Р°С‚РєСѓ (РІРёРґР°Р»РµРЅС–) -> РїСЂРёР±РёСЂР°С”РјРѕ Р· РєР°Р»РµРЅРґР°СЂСЏ
     for rid in [k for k in pm["hash"] if f"{k}@padel-monitor" not in seen]:
         info = pm["hash"].pop(rid)
         if isinstance(info, dict) and info.get("end", "") > now.isoformat():
             cal = cal or icloud_cal.find_calendar()
             icloud_cal.delete_event(f"{rid}@padel-monitor", cal)
-            changes.append("🗑 гру прибрано з PTmates — видалено з календаря")
+            changes.append("рџ—‘ РіСЂСѓ РїСЂРёР±СЂР°РЅРѕ Р· PTmates вЂ” РІРёРґР°Р»РµРЅРѕ Р· РєР°Р»РµРЅРґР°СЂСЏ")
     save_state(state)
-    for c in changes:  # без повідомлень у Telegram: лише в журнал
+    for c in changes:  # Р±РµР· РїРѕРІС–РґРѕРјР»РµРЅСЊ Сѓ Telegram: Р»РёС€Рµ РІ Р¶СѓСЂРЅР°Р»
         print(f"ptmates: {c}")
-    print(f"ptmates: ігор {len(data['reservations'])}, змін у календарі: {len(changes)}")
+    print(f"ptmates: С–РіРѕСЂ {len(data['reservations'])}, Р·РјС–РЅ Сѓ РєР°Р»РµРЅРґР°СЂС–: {len(changes)}")
     return 0
 
 
 def sync_calendar() -> int:
-    """Додає в календар iCloud усі ваші майбутні броні (повторний запуск не створює дублікатів)."""
+    """Р”РѕРґР°С” РІ РєР°Р»РµРЅРґР°СЂ iCloud СѓСЃС– РІР°С€С– РјР°Р№Р±СѓС‚РЅС– Р±СЂРѕРЅС– (РїРѕРІС‚РѕСЂРЅРёР№ Р·Р°РїСѓСЃРє РЅРµ СЃС‚РІРѕСЂСЋС” РґСѓР±Р»С–РєР°С‚С–РІ)."""
     import icloud_cal
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     tz = ZoneInfo(cfg["timezone"])
     if not icloud_cal.configured():
-        print("немає секретів ICLOUD_*")
+        print("РЅРµРјР°С” СЃРµРєСЂРµС‚С–РІ ICLOUD_*")
         return 1
     try:
         found = collect_my_bookings(cfg, tz)
         cal = icloud_cal.find_calendar()
     except (T4UError, icloud_cal.CalError) as exc:
-        print(f"ПОМИЛКА: {exc}")
-        tg_send(f"⚠️ Синхронізація календаря не вдалася: {exc}")
+        print(f"РџРћРњРР›РљРђ: {exc}")
+        tg_send(f"вљ пёЏ РЎРёРЅС…СЂРѕРЅС–Р·Р°С†С–СЏ РєР°Р»РµРЅРґР°СЂСЏ РЅРµ РІРґР°Р»Р°СЃСЏ: {exc}")
         return 1
     lines, failed = [], 0
     for item, src, note in found:
-        line = f"• {fmt_day(item['day'])} {to_hm(item['start'])}–{to_hm(item['end'] % (24 * 60))} · " \
-               f"{src.get('name', item['src'])} · {item['court'].split(SEP, 1)[-1]}"
+        line = f"вЂў {fmt_day(item['day'])} {to_hm(item['start'])}вЂ“{to_hm(item['end'] % (24 * 60))} В· " \
+               f"{src.get('name', item['src'])} В· {item['court'].split(SEP, 1)[-1]}"
         ok = True
         try:
             icloud_cal.put_event(cal_uid(item), make_ics(item, src, tz, note), cal)
@@ -1177,16 +1177,16 @@ def sync_calendar() -> int:
         except icloud_cal.CalError as exc:
             ok = False
             failed += 1
-            lines.append(f"{line} ⚠️ {exc}")
-        print(f"{item['day']} {to_hm(item['start'])} {src.get('short')}: {'OK' if ok else 'ПОМИЛКА'}")
-    print(f"знайдено майбутніх броней: {len(found)}, помилок: {failed}")
-    tg_send("📅 Додано в календар ваші майбутні броні:\n" + "\n".join(lines) if lines
-            else "📅 Майбутніх броней не знайдено.")
+            lines.append(f"{line} вљ пёЏ {exc}")
+        print(f"{item['day']} {to_hm(item['start'])} {src.get('short')}: {'OK' if ok else 'РџРћРњРР›РљРђ'}")
+    print(f"Р·РЅР°Р№РґРµРЅРѕ РјР°Р№Р±СѓС‚РЅС–С… Р±СЂРѕРЅРµР№: {len(found)}, РїРѕРјРёР»РѕРє: {failed}")
+    tg_send("рџ“… Р”РѕРґР°РЅРѕ РІ РєР°Р»РµРЅРґР°СЂ РІР°С€С– РјР°Р№Р±СѓС‚РЅС– Р±СЂРѕРЅС–:\n" + "\n".join(lines) if lines
+            else "рџ“… РњР°Р№Р±СѓС‚РЅС–С… Р±СЂРѕРЅРµР№ РЅРµ Р·РЅР°Р№РґРµРЅРѕ.")
     return 1 if failed else 0
 
 
 def selftest() -> int:
-    """Перевірка логіки на вигаданих даних: нічого не бронює і не надсилає."""
+    """РџРµСЂРµРІС–СЂРєР° Р»РѕРіС–РєРё РЅР° РІРёРіР°РґР°РЅРёС… РґР°РЅРёС…: РЅС–С‡РѕРіРѕ РЅРµ Р±СЂРѕРЅСЋС” С– РЅРµ РЅР°РґСЃРёР»Р°С”."""
     global do_book, tg_send, tg_edit
     sent: list[str] = []
     booked: list[dict] = []
@@ -1206,30 +1206,30 @@ def selftest() -> int:
     os.environ["PADEL_SELFTEST"] = "1"
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     tz = ZoneInfo(cfg["timezone"])
-    now = datetime(2026, 11, 20, 12, 0, tzinfo=tz)  # пт
+    now = datetime(2026, 11, 20, 12, 0, tzinfo=tz)  # РїС‚
     sources = {s["short"]: s for s in cfg["sources"]}
     blocks = [
-        {"day": "2026-11-21", "court": "Fame · Padel hala", "start": 18 * 60, "end": 20 * 60},     # 30 год -> авто
-        {"day": "2026-11-21", "court": "PadelHouse · Padel 1", "start": 19 * 60, "end": 21 * 60},  # той самий день, пізніше
-        {"day": "2026-11-20", "court": "Fame · Padel hala", "start": 20 * 60, "end": 21 * 60 + 30},  # 8 год -> питати
-        {"day": "2026-11-24", "court": "Błonia · Padel 1", "start": 18 * 60, "end": 20 * 60},      # twojtenis, авто
-        {"day": "2026-11-25", "court": "PadelHouse · Padel 2", "start": 20 * 60, "end": 23 * 60},  # авто, 2 год
+        {"day": "2026-11-21", "court": "Fame В· Padel hala", "start": 18 * 60, "end": 20 * 60},     # 30 РіРѕРґ -> Р°РІС‚Рѕ
+        {"day": "2026-11-21", "court": "PadelHouse В· Padel 1", "start": 19 * 60, "end": 21 * 60},  # С‚РѕР№ СЃР°РјРёР№ РґРµРЅСЊ, РїС–Р·РЅС–С€Рµ
+        {"day": "2026-11-20", "court": "Fame В· Padel hala", "start": 20 * 60, "end": 21 * 60 + 30},  # 8 РіРѕРґ -> РїРёС‚Р°С‚Рё
+        {"day": "2026-11-24", "court": "BЕ‚onia В· Padel 1", "start": 18 * 60, "end": 20 * 60},      # twojtenis, Р°РІС‚Рѕ
+        {"day": "2026-11-25", "court": "PadelHouse В· Padel 2", "start": 20 * 60, "end": 23 * 60},  # Р°РІС‚Рѕ, 2 РіРѕРґ
     ]
     state: dict = {}
     quiet = process(blocks, cfg, state, now, tz, sources, {})
     assert [x["day"] for x in booked] == ["2026-11-21", "2026-11-24", "2026-11-25"], booked
     assert booked[0]["court"].startswith("Fame") and booked[0]["end"] - booked[0]["start"] == 120
-    assert booked[1]["court"].startswith("Błonia")
+    assert booked[1]["court"].startswith("BЕ‚onia")
     assert booked[2]["start"] == 20 * 60 and booked[2]["end"] == 22 * 60
-    assert list(state["booking"]["offers"].values())[0]["end"] == 21 * 60 + 30  # блок 1.5 год -> 1.5 год
+    assert list(state["booking"]["offers"].values())[0]["end"] == 21 * 60 + 30  # Р±Р»РѕРє 1.5 РіРѕРґ -> 1.5 РіРѕРґ
     assert quiet == {"2026-11-20", "2026-11-21", "2026-11-24", "2026-11-25"}, quiet
-    # повторний запуск нічого нового не робить
+    # РїРѕРІС‚РѕСЂРЅРёР№ Р·Р°РїСѓСЃРє РЅС–С‡РѕРіРѕ РЅРѕРІРѕРіРѕ РЅРµ СЂРѕР±РёС‚СЊ
     n = len(sent)
     process(blocks, cfg, state, now, tz, sources, {})
     assert len(sent) == n and len(booked) == 3
-    ics = make_ics(booked[0] | {"uuid": "abc"}, sources["Fame"], tz, "Ціна: 150 zł").decode("utf-8")
-    assert "DTSTART:20261121T170000Z" in ics and "DTEND:20261121T190000Z" in ics, ics  # 18:00 Варшава = 17:00 UTC
-    assert "SUMMARY:Падел · Fame Sport Club · Padel hala" in ics and "TRIGGER:-PT2H" in ics, ics
+    ics = make_ics(booked[0] | {"uuid": "abc"}, sources["Fame"], tz, "Р¦С–РЅР°: 150 zЕ‚").decode("utf-8")
+    assert "DTSTART:20261121T170000Z" in ics and "DTEND:20261121T190000Z" in ics, ics  # 18:00 Р’Р°СЂС€Р°РІР° = 17:00 UTC
+    assert "SUMMARY:РџР°РґРµР» В· Fame Sport Club В· Padel hala" in ics and "TRIGGER:-PT2H" in ics, ics
     print("\n---\n".join(sent))
     print("selftest OK")
     return 0
@@ -1243,7 +1243,7 @@ if __name__ == "__main__":
         sys.exit(check())
     elif cmd == "selftest":
         sys.exit(selftest())
-    elif cmd == "book":  # ручне тестове бронювання: book <short> "<корт>" YYYY-MM-DD HH:MM HH:MM
+    elif cmd == "book":  # СЂСѓС‡РЅРµ С‚РµСЃС‚РѕРІРµ Р±СЂРѕРЅСЋРІР°РЅРЅСЏ: book <short> "<РєРѕСЂС‚>" YYYY-MM-DD HH:MM HH:MM
         _cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
         _short, _court, _day, _st, _en = sys.argv[2:7]
         _src = next(s for s in _cfg["sources"] if s["short"] == _short)
@@ -1255,21 +1255,21 @@ if __name__ == "__main__":
                 _loc = next(l for l in _club["locations"] if l["name"].strip().lower() == _court.strip().lower())
                 _res = _c.book(_loc["id"], _loc["name"], _day, f"{_st}:00", f"{_en}:00")
             else:
-                raise T4UError("ручне тестове бронювання зроблене лише для twojtenis")
+                raise T4UError("СЂСѓС‡РЅРµ С‚РµСЃС‚РѕРІРµ Р±СЂРѕРЅСЋРІР°РЅРЅСЏ Р·СЂРѕР±Р»РµРЅРµ Р»РёС€Рµ РґР»СЏ twojtenis")
         except T4UError as exc:
-            print(f"{_short}: ПОМИЛКА бронювання: {exc}")
-            tg_send(f"⚠️ Тестове бронювання не вдалося\n{_src['name']} · {_court}\n{fmt_day(_day)} {_st}–{_en}\nПричина: {exc}")
+            print(f"{_short}: РџРћРњРР›РљРђ Р±СЂРѕРЅСЋРІР°РЅРЅСЏ: {exc}")
+            tg_send(f"вљ пёЏ РўРµСЃС‚РѕРІРµ Р±СЂРѕРЅСЋРІР°РЅРЅСЏ РЅРµ РІРґР°Р»РѕСЃСЏ\n{_src['name']} В· {_court}\n{fmt_day(_day)} {_st}вЂ“{_en}\nРџСЂРёС‡РёРЅР°: {exc}")
             sys.exit(1)
         _bid = _res.get("id")
-        print(f"{_short}: ЗАБРОНЬОВАНО id={_bid} ціна={_res.get('_cost')} cancelUntil={_res.get('cancelUntil')}")
-        _cu = f"\nСкасувати можна до: {_res.get('cancelUntil')}" if _res.get("cancelUntil") else ""
-        tg_send(f"✅ Тестова бронь\n{_src['name']} · {_court}\n{fmt_day(_day)} {_st}–{_en}\n"
-                f"Ціна: {_res.get('_cost')} zł (оплата в клубі){_cu}\n{my_url(_src)}")
+        print(f"{_short}: Р—РђР‘Р РћРќР¬РћР’РђРќРћ id={_bid} С†С–РЅР°={_res.get('_cost')} cancelUntil={_res.get('cancelUntil')}")
+        _cu = f"\nРЎРєР°СЃСѓРІР°С‚Рё РјРѕР¶РЅР° РґРѕ: {_res.get('cancelUntil')}" if _res.get("cancelUntil") else ""
+        tg_send(f"вњ… РўРµСЃС‚РѕРІР° Р±СЂРѕРЅСЊ\n{_src['name']} В· {_court}\n{fmt_day(_day)} {_st}вЂ“{_en}\n"
+                f"Р¦С–РЅР°: {_res.get('_cost')} zЕ‚ (РѕРїР»Р°С‚Р° РІ РєР»СѓР±С–){_cu}\n{my_url(_src)}")
         _h = lambda s: int(s[:2]) * 60 + int(s[3:5])  # noqa: E731
         send_calendar({"day": _day, "start": _h(_st), "end": _h(_en), "court": f"{_short}{SEP}{_court}",
                        "src": _short, "uuid": _bid}, _src, ZoneInfo(_cfg["timezone"]),
-                      f"Ціна: {_res.get('_cost')} zł (оплата в клубі){_cu}")
-    elif cmd == "cash":  # ваші майбутні броні tenis4u «до оплати» -> оплата готівкою
+                      f"Р¦С–РЅР°: {_res.get('_cost')} zЕ‚ (РѕРїР»Р°С‚Р° РІ РєР»СѓР±С–){_cu}")
+    elif cmd == "cash":  # РІР°С€С– РјР°Р№Р±СѓС‚РЅС– Р±СЂРѕРЅС– tenis4u В«РґРѕ РѕРїР»Р°С‚РёВ» -> РѕРїР»Р°С‚Р° РіРѕС‚С–РІРєРѕСЋ
         _cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
         _src = next(s for s in _cfg["sources"] if s.get("type") == "tenis4u")
         _c = Tenis4u(_src)
@@ -1279,21 +1279,21 @@ if __name__ == "__main__":
         for _p, _it in _c.my_reservations():
             _st = str(_it.get("start_time") or "")[:16]
             _pay = str(_it.get("my_payment_status") or "").upper()
-            print(f"{_st} {_it.get('court_name')} статус={_it.get('status')} оплата={_pay or '-'} роль={_it.get('my_role')}")
+            print(f"{_st} {_it.get('court_name')} СЃС‚Р°С‚СѓСЃ={_it.get('status')} РѕРїР»Р°С‚Р°={_pay or '-'} СЂРѕР»СЊ={_it.get('my_role')}")
             if _st > _now and needs_cash(_it) and _it.get("public_uuid"):
                 try:
                     _r = _c.pay_cash(_it["public_uuid"])
                     _online = isinstance(_r, dict) and (_r.get("payment") or {}).get("redirect_url")
-                    print(f"  -> {'клуб повернув онлайн-оплату!' if _online else 'готівка'}")
+                    print(f"  -> {'РєР»СѓР± РїРѕРІРµСЂРЅСѓРІ РѕРЅР»Р°Р№РЅ-РѕРїР»Р°С‚Сѓ!' if _online else 'РіРѕС‚С–РІРєР°'}")
                     _n += 0 if _online else 1
                 except T4UError as exc:
-                    print(f"  -> ПОМИЛКА {exc}")
-        tg_send(f"💵 Оплату готівкою обрано для {_n} броней у tenis4u." if _n else "💵 Броней «до оплати» не знайдено.")
-    elif cmd == "sync":  # усі ваші майбутні броні -> календар iCloud
+                    print(f"  -> РџРћРњРР›РљРђ {exc}")
+        tg_send(f"рџ’µ РћРїР»Р°С‚Сѓ РіРѕС‚С–РІРєРѕСЋ РѕР±СЂР°РЅРѕ РґР»СЏ {_n} Р±СЂРѕРЅРµР№ Сѓ tenis4u." if _n else "рџ’µ Р‘СЂРѕРЅРµР№ В«РґРѕ РѕРїР»Р°С‚РёВ» РЅРµ Р·РЅР°Р№РґРµРЅРѕ.")
+    elif cmd == "sync":  # СѓСЃС– РІР°С€С– РјР°Р№Р±СѓС‚РЅС– Р±СЂРѕРЅС– -> РєР°Р»РµРЅРґР°СЂ iCloud
         sys.exit(sync_calendar())
-    elif cmd == "ptmates-sync":  # ігри з PTmates -> календар iCloud
+    elif cmd == "ptmates-sync":  # С–РіСЂРё Р· PTmates -> РєР°Р»РµРЅРґР°СЂ iCloud
         sys.exit(ptmates_sync())
-    elif cmd == "ics":  # лише файл календаря для вже існуючої броні: ics <short> "<корт>" YYYY-MM-DD HH:MM HH:MM
+    elif cmd == "ics":  # Р»РёС€Рµ С„Р°Р№Р» РєР°Р»РµРЅРґР°СЂСЏ РґР»СЏ РІР¶Рµ С–СЃРЅСѓСЋС‡РѕС— Р±СЂРѕРЅС–: ics <short> "<РєРѕСЂС‚>" YYYY-MM-DD HH:MM HH:MM
         _cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
         _short, _court, _day, _st, _en = sys.argv[2:7]
         _src = next(s for s in _cfg["sources"] if s["short"] == _short)
@@ -1301,8 +1301,8 @@ if __name__ == "__main__":
         send_calendar({"day": _day, "start": _h(_st), "end": _h(_en), "court": f"{_short}{SEP}{_court}",
                        "src": _short, "uuid": (sys.argv[7] if len(sys.argv) > 7 and sys.argv[7] else None)},
                       _src, ZoneInfo(_cfg["timezone"]))
-        print("подію календаря надіслано")
-    elif cmd == "probe":  # діагностика запиту бронювання twojtenis (дата в минулому, бронь не створюється)
+        print("РїРѕРґС–СЋ РєР°Р»РµРЅРґР°СЂСЏ РЅР°РґС–СЃР»Р°РЅРѕ")
+    elif cmd == "probe":  # РґС–Р°РіРЅРѕСЃС‚РёРєР° Р·Р°РїРёС‚Сѓ Р±СЂРѕРЅСЋРІР°РЅРЅСЏ twojtenis (РґР°С‚Р° РІ РјРёРЅСѓР»РѕРјСѓ, Р±СЂРѕРЅСЊ РЅРµ СЃС‚РІРѕСЂСЋС”С‚СЊСЃСЏ)
         _cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
         _src = next(s for s in _cfg["sources"] if s.get("type") == "twojtenis")
         _c = Twojtenis(_src)
