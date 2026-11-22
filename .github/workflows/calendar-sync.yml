@@ -32,4 +32,7 @@ jobs:
           ICLOUD_USER: ${{ secrets.ICLOUD_USER }}
           ICLOUD_APP_PASSWORD: ${{ secrets.ICLOUD_APP_PASSWORD }}
           ICLOUD_CALENDAR: ${{ secrets.ICLOUD_CALENDAR }}
-        run: python booker.py sync
+          PTMATES_COOKIE: ${{ secrets.PTMATES_COOKIE }}
+        run: |
+          python booker.py sync || echo "club sync failed"
+          python booker.py ptmates-sync

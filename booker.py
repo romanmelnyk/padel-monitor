@@ -448,7 +448,7 @@ def active_bookings(b: dict, now: datetime) -> list[dict]:
 
 
 def my_url(src: dict) -> str:
-    return src.get("booking_url", "") if src.get("type") == "twojtenis" else MY_RESERVATIONS_URL
+    return src.get("booking_url", "") if src.get("type") in ("twojtenis", "ptmates") else MY_RESERVATIONS_URL
 
 
 def plan_for_block(block: dict, bcfg: dict) -> tuple[int, int]:
@@ -848,6 +848,104 @@ def collect_my_bookings(cfg: dict, tz: ZoneInfo) -> list[tuple[dict, dict, str]]
     return sorted(out, key=lambda x: (x[0]["day"], x[0]["start"]))
 
 
+PTMATES_URL = "https://ptmates.com"
+
+
+def ptmates_sync() -> int:
+    """Ігри з календаря PTmates (свої і ті, куди вас запросили) -> календар iCloud.
+    Додає/оновлює майбутні, прибирає скасовані або відхилені. Кука сесії - секрет PTMATES_COOKIE."""
+    import hashlib
+    import icloud_cal
+    cookie = os.environ.get("PTMATES_COOKIE", "").strip()
+    if not cookie or not icloud_cal.configured():
+        return 0
+    cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+    tz = ZoneInfo(cfg["timezone"])
+    state = load_state()
+    pm = state.setdefault("ptmates", {"hash": {}})
+    req = urllib.request.Request(f"{PTMATES_URL}/api/calendar/bootstrap", headers={
+        "Cookie": cookie, "Accept": "application/json", "User-Agent": "padel-slot-monitor/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read().decode("utf-8")
+        data = json.loads(raw)
+        if not isinstance(data.get("reservations"), list):
+            raise ValueError("немає reservations")
+    except Exception as exc:  # noqa: BLE001 - сесія закінчилась (редирект на /login) або сайт недоступний
+        log(f"ptmates: {type(exc).__name__}: {str(exc)[:150]}")
+        n = pm.get("fails", 0) + 1
+        pm["fails"] = n
+        if n == 3 and not pm.get("warned"):
+            pm["warned"] = True
+            tg_send("⚠️ PTmates: не вдається прочитати календар (схоже, сесія закінчилась). "
+                    "Увійдіть на ptmates.com і оновіть секрет PTMATES_COOKIE.")
+        save_state(state)
+        return 1
+    pm.pop("fails", None)
+    pm.pop("warned", None)
+
+    now = datetime.now(tz)
+    cal = None
+    me = str(data.get("currentUserName") or "")
+    seen: set[str] = set()
+    changes: list[str] = []
+    for r in data["reservations"]:
+        try:
+            start = datetime.fromisoformat(str(r["starts_at"])[:19]).replace(tzinfo=tz)
+            end = datetime.fromisoformat(str(r["ends_at"])[:19]).replace(tzinfo=tz)
+        except (KeyError, ValueError):
+            continue
+        if end <= now:
+            continue
+        rid = str(r.get("id"))
+        uid = f"{rid}@padel-monitor"
+        seen.add(uid)
+        status = str(r.get("status") or "").upper()
+        part = str(r.get("participation_status") or "").upper()
+        dead = any(s in status for s in ("CANCEL", "DELETED", "REJECT")) or part in ("DECLINED", "REJECTED", "LEFT", "REMOVED")
+        club = str(r.get("title") or "Падел").strip()
+        station = str(r.get("station_name") or "").strip()
+        station = station[:1].upper() + station[1:]
+        day = start.date().isoformat()
+        label = f"{fmt_day(day)} {start:%H:%M}–{end:%H:%M} · {club}"
+        if dead:
+            if rid in pm["hash"]:
+                cal = cal or icloud_cal.find_calendar()
+                icloud_cal.delete_event(uid, cal)
+                pm["hash"].pop(rid, None)
+                changes.append(f"🗑 {label}")
+            continue
+        owner = str(r.get("owner_name") or "").strip()
+        note = []
+        if owner and owner != me:
+            note.append(f"Бронював: {owner}")
+        if r.get("price"):
+            note.append(f"Ціна: {r['price']} zł")
+        item = {"day": day, "start": start.hour * 60 + start.minute,
+                "end": start.hour * 60 + start.minute + int((end - start).total_seconds() // 60),
+                "court": f"PTmates{SEP}{station or 'корт'}", "src": "PTmates", "uuid": rid}
+        src = {"name": club, "type": "ptmates", "booking_url": f"{PTMATES_URL}/calendar"}
+        h = hashlib.sha1(json.dumps([item, club, note], ensure_ascii=False).encode()).hexdigest()
+        if (pm["hash"].get(rid) or {}).get("h") == h:
+            continue
+        cal = cal or icloud_cal.find_calendar()
+        icloud_cal.put_event(uid, make_ics(item, src, tz, "\n".join(note)), cal)
+        changes.append(("✏️ " if rid in pm["hash"] else "➕ ") + label + (f" (бронював {owner})" if owner and owner != me else ""))
+        pm["hash"][rid] = {"h": h, "end": end.isoformat()}
+    # ігри, що зникли з PTmates до свого початку (видалені) -> прибираємо з календаря
+    for rid in [k for k in pm["hash"] if f"{k}@padel-monitor" not in seen]:
+        info = pm["hash"].pop(rid)
+        if isinstance(info, dict) and info.get("end", "") > now.isoformat():
+            cal = cal or icloud_cal.find_calendar()
+            icloud_cal.delete_event(f"{rid}@padel-monitor", cal)
+            changes.append("🗑 гру прибрано з PTmates — видалено з календаря")
+    save_state(state)
+    if changes:
+        tg_send("📅 Календар оновлено з PTmates:\n" + "\n".join(changes))
+    print(f"ptmates: ігор {len(data['reservations'])}, змін у календарі: {len(changes)}")
+    return 0
+
+
 def sync_calendar() -> int:
     """Додає в календар iCloud усі ваші майбутні броні (повторний запуск не створює дублікатів)."""
     import icloud_cal
@@ -967,6 +1065,8 @@ if __name__ == "__main__":
                       f"Ціна: {_res.get('_cost')} zł (оплата в клубі){_cu}")
     elif cmd == "sync":  # усі ваші майбутні броні -> календар iCloud
         sys.exit(sync_calendar())
+    elif cmd == "ptmates-sync":  # ігри з PTmates -> календар iCloud
+        sys.exit(ptmates_sync())
     elif cmd == "ics":  # лише файл календаря для вже існуючої броні: ics <short> "<корт>" YYYY-MM-DD HH:MM HH:MM
         _cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
         _short, _court, _day, _st, _en = sys.argv[2:7]
