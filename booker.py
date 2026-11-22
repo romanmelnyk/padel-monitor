@@ -992,7 +992,7 @@ def ptmates_publish(data: dict, state: dict, cfg: dict, tz: ZoneInfo) -> bool:
         players = list(data.get("playersByReservationId", {}).get(rid) or [])
         privacy = str(data.get("privacyByReservationId", {}).get(rid) or "PERSONAL").upper()
         from_t4u = str(r.get("source") or "").upper() == "API"
-        want_public = from_t4u
+        want_public = from_t4u or "blonia" in _norm(r.get("title"))  # tenis4u і Blonia Sport -> публічні
         if me in players and (privacy == "PUBLIC" or not want_public):
             continue
         invites = data.get("invitesByReservationId", {}).get(rid) or []
