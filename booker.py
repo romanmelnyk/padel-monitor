@@ -233,9 +233,9 @@ class Tenis4u:
         if not self.token:
             raise T4UError("вхід не вдався (немає access_token)")
 
-    def my_days(self) -> set[str]:
-        """Дні, на які у вас уже є активна бронь у tenis4u (будь-який клуб)."""
-        days: set[str] = set()
+    def my_reservations(self) -> list[tuple[str, dict]]:
+        """[(endpoint, бронь)] з обох списків броней tenis4u (нового v3 і старого)."""
+        out: list[tuple[str, dict]] = []
         for path in ("/api/v3/reservations/my", "/reservation/list"):
             try:
                 res = self._req("GET", path)
@@ -244,17 +244,21 @@ class Tenis4u:
                 continue
             items = res if isinstance(res, list) else next(
                 (v for v in (res or {}).values() if isinstance(v, list)), [])
-            for it in items:
-                if not isinstance(it, dict):
-                    continue
-                status = str(it.get("status") or it.get("reservation_status") or "").upper()
-                if any(s in status for s in ("CANCEL", "DELETED", "REJECT")):
-                    continue
-                for k in ("start_time", "starts_at", "startTime", "start_date", "date", "day"):
-                    v = it.get(k)
-                    if isinstance(v, str) and len(v) >= 10:
-                        days.add(v[:10].replace("/", "-"))
-                        break
+            out += [(path, it) for it in items if isinstance(it, dict)]
+        return out
+
+    def my_days(self) -> set[str]:
+        """Дні, на які у вас уже є активна бронь у tenis4u (будь-який клуб)."""
+        days: set[str] = set()
+        for _path, it in self.my_reservations():
+            status = str(it.get("status") or it.get("reservation_status") or "").upper()
+            if any(s in status for s in ("CANCEL", "DELETED", "REJECT")):
+                continue
+            for k in ("start_time", "starts_at", "startTime", "start_date", "date", "day"):
+                v = it.get(k)
+                if isinstance(v, str) and len(v) >= 10:
+                    days.add(v[:10].replace("/", "-"))
+                    break
         return days
 
     def tariff_id(self, station_id: int, start: datetime, end: datetime) -> tuple[int | None, float | None]:
@@ -339,11 +343,14 @@ class Twojtenis:
             raise T4UError(f"вхід у twojtenis: {exc}") from None
         self.svc = self._req("GET", f"{self.api}/Clubs/{self.club}/technical-group")["serviceUrl"].rstrip("/")
 
-    def my_days(self) -> set[str]:
+    def my_bookings(self) -> list[dict]:
         today = date.today()
         q = urllib.parse.urlencode({"from": today.isoformat(), "to": (today + timedelta(days=40)).isoformat()})
         items = self._req("GET", f"{self.svc}/api/v1/bookings/my?{q}") or []
-        return {str(b.get("date"))[:10] for b in items if isinstance(b, dict) and not b.get("isDeleted")}
+        return [b for b in items if isinstance(b, dict) and not b.get("isDeleted")]
+
+    def my_days(self) -> set[str]:
+        return {str(b.get("date"))[:10] for b in self.my_bookings()}
 
     def book(self, location_id: str, location_name: str, day: str, start: str, end: str) -> dict:
         prof, price = self._prepare(location_id, day, start, end)
@@ -729,6 +736,152 @@ def check() -> int:
     return rc
 
 
+# ---------------------------------------------------------------- синхронізація з календарем
+
+def _dt_from(it: dict, keys: tuple[str, ...], day_hint: str = "") -> datetime | None:
+    """Дістає дату-час із броні tenis4u, у якому б вигляді вона не була."""
+    for k in keys:
+        v = it.get(k)
+        if isinstance(v, str) and len(v) >= 16:
+            try:
+                return datetime.fromisoformat(v.replace("Z", "+00:00").replace("/", "-")[:25])
+            except ValueError:
+                continue
+        if isinstance(v, dict) and "hour" in v and day_hint:
+            return datetime.fromisoformat(f"{day_hint}T{int(v['hour']):02d}:{int(v.get('minute', 0)):02d}")
+        if isinstance(v, str) and len(v) in (5, 8) and ":" in v and day_hint:
+            return datetime.fromisoformat(f"{day_hint}T{v[:5]}")
+    return None
+
+
+def _name_from(it: dict, keys: tuple[str, ...]) -> str:
+    for k in keys:
+        v = it.get(k)
+        if isinstance(v, dict):
+            v = v.get("name") or v.get("title")
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return ""
+
+
+def _shape(it: dict) -> str:
+    """Лише назви полів (без значень) - для діагностики в публічному журналі."""
+    return ", ".join(f"{k}{'{' + ','.join(v.keys()) + '}' if isinstance(v, dict) else ''}" for k, v in it.items())
+
+
+def collect_my_bookings(cfg: dict, tz: ZoneInfo) -> list[tuple[dict, dict, str]]:
+    """[(item для make_ics, src, примітка)] усіх ваших майбутніх броней у клубах з config.json."""
+    now = datetime.now(tz)
+    out: list[tuple[dict, dict, str]] = []
+    seen: set[tuple] = set()
+
+    t4u_srcs = [s for s in cfg["sources"] if s.get("type") == "tenis4u" and s.get("enabled", True)]
+    if t4u_srcs and os.environ.get("TENIS4U_LOGIN"):
+        client = Tenis4u(t4u_srcs[0])
+        client.login()
+        shown: set[str] = set()
+        for path, it in client.my_reservations():
+            if path not in shown:
+                shown.add(path)
+                print(f"tenis4u {path}: поля броні: {_shape(it)}")
+            status = str(it.get("status") or it.get("reservation_status") or "").upper()
+            if any(s in status for s in ("CANCEL", "DELETED", "REJECT")):
+                continue
+            day = ""
+            for k in ("date", "day", "start_date"):
+                if isinstance(it.get(k), str) and len(it[k]) >= 10:
+                    day = it[k][:10].replace("/", "-")
+                    break
+            start = _dt_from(it, ("start_time", "starts_at", "startTime", "start", "begin", "begin_time"), day)
+            end = _dt_from(it, ("end_time", "ends_at", "endTime", "end", "end_hour"), day)
+            if not start or not end:
+                print(f"tenis4u {path}: не зміг розібрати час броні")
+                continue
+            start = start.astimezone(tz) if start.tzinfo else start.replace(tzinfo=tz)
+            end = end.astimezone(tz) if end.tzinfo else end.replace(tzinfo=tz)
+            if end <= now:
+                continue
+            c = it.get("court")
+            court_id = it.get("court_id") or (c.get("id") if isinstance(c, dict) else None)
+            club = _name_from(it, ("court_name", "courtName", "court", "club_name", "clubName", "club"))
+            src = next((s for s in t4u_srcs if court_id and int(s["court_id"]) == int(court_id)), None)
+            if not src:
+                src = next((s for s in t4u_srcs if club and (s["name"].lower() in club.lower()
+                                                            or club.lower() in s["name"].lower())), None)
+            src = src or {"short": "tenis4u", "name": club or "tenis4u", "type": "tenis4u"}
+            station = _name_from(it, ("station_name", "stationName", "station")) or "корт"
+            station = station.split(": ", 1)[-1]
+            station = station[:1].upper() + station[1:]
+            key = (start.isoformat(), src["short"])
+            if key in seen:
+                continue
+            seen.add(key)
+            uid = it.get("public_uuid") or it.get("uuid") or it.get("id")
+            item = {"day": start.date().isoformat(), "start": start.hour * 60 + start.minute,
+                    "end": start.hour * 60 + start.minute + int((end - start).total_seconds() // 60),
+                    "court": f"{src['short']}{SEP}{station}", "src": src["short"], "uuid": str(uid) if uid else None}
+            price = it.get("price") or it.get("cost")
+            out.append((item, src, f"Ціна: {price} zł" if price else ""))
+
+    tt_srcs = [s for s in cfg["sources"] if s.get("type") == "twojtenis" and s.get("enabled", True)]
+    if tt_srcs and os.environ.get("TWOJTENIS_LOGIN"):
+        client = Twojtenis(tt_srcs[0])
+        client.login()
+        for b in client.my_bookings():
+            day, st, en = str(b.get("date"))[:10], str(b.get("startTime"))[:5], str(b.get("endTime"))[:5]
+            start = datetime.fromisoformat(f"{day}T{st}").replace(tzinfo=tz)
+            s_min = int(st[:2]) * 60 + int(st[3:5])
+            e_min = int(en[:2]) * 60 + int(en[3:5]) or 24 * 60
+            if start + timedelta(minutes=e_min - s_min) <= now:
+                continue
+            src = next((s for s in tt_srcs if s["club_id"] == b.get("clubId")), None) \
+                or {"short": "twojtenis", "name": b.get("clubName") or "twojtenis", "type": "twojtenis"}
+            item = {"day": day, "start": s_min, "end": e_min, "src": src["short"],
+                    "court": f"{src['short']}{SEP}{b.get('locationName') or 'корт'}", "uuid": b.get("id")}
+            note = []
+            if b.get("price"):
+                note.append(f"Ціна: {b['price']} zł")
+            if b.get("cancelUntil"):
+                item["cancel_until"] = str(b["cancelUntil"])
+                note.append(cancel_text(item, tz, 24))
+            out.append((item, src, "\n".join(note)))
+    return sorted(out, key=lambda x: (x[0]["day"], x[0]["start"]))
+
+
+def sync_calendar() -> int:
+    """Додає в календар iCloud усі ваші майбутні броні (повторний запуск не створює дублікатів)."""
+    import icloud_cal
+    cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+    tz = ZoneInfo(cfg["timezone"])
+    if not icloud_cal.configured():
+        print("немає секретів ICLOUD_*")
+        return 1
+    try:
+        found = collect_my_bookings(cfg, tz)
+        cal = icloud_cal.find_calendar()
+    except (T4UError, icloud_cal.CalError) as exc:
+        print(f"ПОМИЛКА: {exc}")
+        tg_send(f"⚠️ Синхронізація календаря не вдалася: {exc}")
+        return 1
+    lines, failed = [], 0
+    for item, src, note in found:
+        line = f"• {fmt_day(item['day'])} {to_hm(item['start'])}–{to_hm(item['end'] % (24 * 60))} · " \
+               f"{src.get('name', item['src'])} · {item['court'].split(SEP, 1)[-1]}"
+        ok = True
+        try:
+            icloud_cal.put_event(cal_uid(item), make_ics(item, src, tz, note), cal)
+            lines.append(line)
+        except icloud_cal.CalError as exc:
+            ok = False
+            failed += 1
+            lines.append(f"{line} ⚠️ {exc}")
+        print(f"{item['day']} {to_hm(item['start'])} {src.get('short')}: {'OK' if ok else 'ПОМИЛКА'}")
+    print(f"знайдено майбутніх броней: {len(found)}, помилок: {failed}")
+    tg_send("📅 Додано в календар ваші майбутні броні:\n" + "\n".join(lines) if lines
+            else "📅 Майбутніх броней не знайдено.")
+    return 1 if failed else 0
+
+
 def selftest() -> int:
     """Перевірка логіки на вигаданих даних: нічого не бронює і не надсилає."""
     global do_book, tg_send, tg_edit
@@ -812,6 +965,8 @@ if __name__ == "__main__":
         send_calendar({"day": _day, "start": _h(_st), "end": _h(_en), "court": f"{_short}{SEP}{_court}",
                        "src": _short, "uuid": _bid}, _src, ZoneInfo(_cfg["timezone"]),
                       f"Ціна: {_res.get('_cost')} zł (оплата в клубі){_cu}")
+    elif cmd == "sync":  # усі ваші майбутні броні -> календар iCloud
+        sys.exit(sync_calendar())
     elif cmd == "ics":  # лише файл календаря для вже існуючої броні: ics <short> "<корт>" YYYY-MM-DD HH:MM HH:MM
         _cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
         _short, _court, _day, _st, _en = sys.argv[2:7]

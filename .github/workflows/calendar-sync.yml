@@ -1,0 +1,35 @@
+name: calendar-sync
+
+# Додає в календар iCloud усі ваші майбутні броні в клубах з config.json
+# (зроблені ботом або вами вручну). Повторний запуск не створює дублікатів.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install browser for twojtenis login
+        run: |
+          pip install -q playwright
+          python -m playwright install --with-deps chromium > /dev/null
+      - name: Sync
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TENIS4U_LOGIN: ${{ secrets.TENIS4U_LOGIN }}
+          TENIS4U_PASSWORD: ${{ secrets.TENIS4U_PASSWORD }}
+          TWOJTENIS_LOGIN: ${{ secrets.TWOJTENIS_LOGIN }}
+          TWOJTENIS_PASSWORD: ${{ secrets.TWOJTENIS_PASSWORD }}
+          ICLOUD_USER: ${{ secrets.ICLOUD_USER }}
+          ICLOUD_APP_PASSWORD: ${{ secrets.ICLOUD_APP_PASSWORD }}
+          ICLOUD_CALENDAR: ${{ secrets.ICLOUD_CALENDAR }}
+        run: python booker.py sync
