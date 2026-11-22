@@ -5529,3 +5529,7 @@ ts,slot_date,slot_time,court,event,lead_min,free_min
 2026-11-22T03:12:00+01:00,2026-12-05,17:30,PadelHouse · Padel 3,taken,19578,191
 2026-11-22T03:12:00+01:00,2026-12-05,18:00,PadelHouse · Padel 3,taken,19608,191
 2026-11-22T03:12:00+01:00,2026-12-05,18:30,PadelHouse · Padel 3,taken,19638,191
+2026-11-22T07:12:00+01:00,2026-11-22,07:00,Błonia · Padel 1,expired,0,9347
+2026-11-22T07:12:00+01:00,2026-11-22,07:00,Błonia · Padel 2,expired,0,9347
+2026-11-22T07:12:00+01:00,2026-11-22,07:00,Błonia · Padel 3,expired,0,9347
+2026-11-22T07:12:00+01:00,2026-11-22,07:00,Błonia · Padel 4,expired,0,9347
