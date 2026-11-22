@@ -1014,7 +1014,13 @@ def ptmates_publish(data: dict, state: dict, cfg: dict, tz: ZoneInfo) -> bool:
     # --- публічність і участь
     for r in data["reservations"]:
         rid = str(r.get("id"))
-        if not r.get("can_manage") or str(r.get("ends_at", ""))[:19] <= now.strftime("%Y-%m-%dT%H:%M:%S"):
+        if str(r.get("ends_at", ""))[:19] <= now.strftime("%Y-%m-%dT%H:%M:%S"):
+            continue
+        print(f"ptmates: гра {str(r.get('starts_at'))[:16]} {r.get('title')}: джерело={r.get('source')} "
+              f"керую={r.get('can_manage')} статус={r.get('status')} "
+              f"видимість={data.get('privacyByReservationId', {}).get(rid)} "
+              f"я_учасник={me in (data.get('playersByReservationId', {}).get(rid) or [])}")
+        if not r.get("can_manage"):
             continue
         if any(s in str(r.get("status") or "").upper() for s in ("CANCEL", "DELETED", "REJECT")):
             continue
