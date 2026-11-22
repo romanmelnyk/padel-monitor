@@ -1,31 +1,38 @@
 name: booking-test
 
-# Ручне тестове бронювання одного слоту (справжня бронь!). Лише запуск кнопкою Run workflow.
+# Ручні дії з бронями. Лише запуск кнопкою Run workflow.
+#  book - справжня бронь вказаного слоту (twojtenis)
+#  ics  - додати вже наявну бронь у календар
+#  cash - обрати оплату готівкою для ваших майбутніх броней tenis4u «до оплати» (поля корт/дата/час не потрібні)
 on:
   workflow_dispatch:
     inputs:
+      action:
+        description: "book = забронювати (справжня бронь!); ics = додати наявну бронь у календар; cash = готівка для броней tenis4u «до оплати»"
+        type: choice
+        options: ["ics", "book", "cash"]
+        default: "ics"
       source:
         description: "Клуб (short з config.json)"
         default: "Błonia"
       court:
-        description: "Корт, напр. Padel 3"
-        required: true
+        description: "Корт, напр. Padel 3 (для book/ics)"
+        required: false
+        default: ""
       day:
-        description: "Дата YYYY-MM-DD"
-        required: true
+        description: "Дата YYYY-MM-DD (для book/ics)"
+        required: false
+        default: ""
       start:
-        description: "Початок HH:MM"
-        required: true
+        description: "Початок HH:MM (для book/ics)"
+        required: false
+        default: ""
       end:
-        description: "Кінець HH:MM"
-        required: true
-      action:
-        description: "book = забронювати (справжня бронь!); ics = лише надіслати файл календаря для вже існуючої броні"
-        type: choice
-        options: ["ics", "book"]
-        default: "ics"
+        description: "Кінець HH:MM (для book/ics)"
+        required: false
+        default: ""
       booking_id:
-        description: "Для ics: id броні (необов'язково, щоб подію можна було потім знайти)"
+        description: "Для ics: id броні (необов'язково)"
         required: false
         default: ""
 
@@ -46,10 +53,12 @@ jobs:
         run: |
           pip install -q playwright
           python -m playwright install --with-deps chromium > /dev/null
-      - name: Book
+      - name: Run
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TENIS4U_LOGIN: ${{ secrets.TENIS4U_LOGIN }}
+          TENIS4U_PASSWORD: ${{ secrets.TENIS4U_PASSWORD }}
           TWOJTENIS_LOGIN: ${{ secrets.TWOJTENIS_LOGIN }}
           TWOJTENIS_PASSWORD: ${{ secrets.TWOJTENIS_PASSWORD }}
           ICLOUD_USER: ${{ secrets.ICLOUD_USER }}

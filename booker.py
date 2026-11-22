@@ -284,9 +284,9 @@ class Tenis4u:
             "lightning": False,
             "tariff_id": tariff,
         }
-        if "ONLINE" in methods:
-            # клуб із вибором оплати (Padel House): без цього бронь створюється з онлайн-оплатою
-            # і сама скасовується через 30 хв. Так само робить застосунок, коли обираєте «Gotówka».
+        if "CASH" in methods or not methods:
+            # завжди явно обираємо готівку (як кнопка «Gotówka» в застосунку): без цього Padel House
+            # ставить онлайн-оплату (скасування через 30 хв), а Fame лишає бронь «до оплати»
             body["payment"] = {"payment_method": "CASH",
                                "payment_config": {"return_url": "https://app.tenis4u.pl/user/dashboard"}}
         res = self._req("POST", "/api/v3/reservations", body=body)
@@ -302,6 +302,12 @@ class Tenis4u:
             raise T4UError("клуб оформив бронь з онлайн-оплатою (сама скасувалась би за 30 хв) — скасував її")
         res["_cost"] = cost
         return res
+
+    def pay_cash(self, uuid: str) -> dict:
+        """Обрати оплату готівкою для вже створеної броні (як «Оплатити -> Gotówka» в застосунку)."""
+        return self._req("POST", f"/api/v3/reservations/{uuid}/payments", body={
+            "payment_method": "CASH",
+            "payment_config": {"return_url": f"https://app.tenis4u.pl/reservation/{uuid}"}})
 
     def cancel(self, uuid: str) -> None:
         self._req("DELETE", f"/api/v3/reservations/{uuid}")
@@ -532,10 +538,24 @@ def verify_bookings(b: dict, sources: dict, now: datetime) -> None:
         client = Tenis4u(sources[mine[0]["src"]])
         client.login()
         alive = set()
+        unpaid = set()
         for _p, it in client.my_reservations():
             status = str(it.get("status") or "").upper()
             if not any(s in status for s in ("CANCEL", "DELETED", "REJECT", "EXPIRED")):
-                alive.add(str(it.get("public_uuid") or it.get("uuid") or it.get("id")))
+                uid = str(it.get("public_uuid") or it.get("uuid") or it.get("id"))
+                alive.add(uid)
+                if str(it.get("my_payment_status") or "").upper() in ("UNPAID", "PENDING_PAYMENT"):
+                    unpaid.add(uid)
+        for x in mine:  # броні бота «до оплати» -> оплата готівкою
+            if x.get("uuid") in unpaid:
+                try:
+                    res = client.pay_cash(x["uuid"])
+                    if isinstance(res, dict) and (res.get("payment") or {}).get("redirect_url"):
+                        log(f"pay_cash {x['uuid']}: клуб повернув онлайн-оплату")
+                    else:
+                        log(f"pay_cash {x['uuid']}: готівка")
+                except T4UError as exc:
+                    log(f"pay_cash {x['uuid']}: {exc}")
     except T4UError as exc:
         log(f"verify: {exc}")
         return
@@ -1240,6 +1260,26 @@ if __name__ == "__main__":
         send_calendar({"day": _day, "start": _h(_st), "end": _h(_en), "court": f"{_short}{SEP}{_court}",
                        "src": _short, "uuid": _bid}, _src, ZoneInfo(_cfg["timezone"]),
                       f"Ціна: {_res.get('_cost')} zł (оплата в клубі){_cu}")
+    elif cmd == "cash":  # ваші майбутні броні tenis4u «до оплати» -> оплата готівкою
+        _cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+        _src = next(s for s in _cfg["sources"] if s.get("type") == "tenis4u")
+        _c = Tenis4u(_src)
+        _c.login()
+        _now = datetime.now(ZoneInfo(_cfg["timezone"])).strftime("%Y-%m-%dT%H:%M")
+        _n = 0
+        for _p, _it in _c.my_reservations():
+            _st = str(_it.get("start_time") or "")[:16]
+            _pay = str(_it.get("my_payment_status") or "").upper()
+            print(f"{_st} {_it.get('court_name')} статус={_it.get('status')} оплата={_pay or '-'} роль={_it.get('my_role')}")
+            if _st > _now and _pay in ("UNPAID", "PENDING_PAYMENT") and _it.get("public_uuid"):
+                try:
+                    _r = _c.pay_cash(_it["public_uuid"])
+                    _online = isinstance(_r, dict) and (_r.get("payment") or {}).get("redirect_url")
+                    print(f"  -> {'клуб повернув онлайн-оплату!' if _online else 'готівка'}")
+                    _n += 0 if _online else 1
+                except T4UError as exc:
+                    print(f"  -> ПОМИЛКА {exc}")
+        tg_send(f"💵 Оплату готівкою обрано для {_n} броней у tenis4u." if _n else "💵 Броней «до оплати» не знайдено.")
     elif cmd == "sync":  # усі ваші майбутні броні -> календар iCloud
         sys.exit(sync_calendar())
     elif cmd == "ptmates-sync":  # ігри з PTmates -> календар iCloud
