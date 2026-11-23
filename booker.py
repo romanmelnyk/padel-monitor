@@ -1254,23 +1254,31 @@ def sync_calendar() -> int:
         print(f"ПОМИЛКА: {exc}")
         tg_send(f"⚠️ Синхронізація календаря не вдалася: {exc}")
         return 1
-    lines, failed = [], 0
+    try:
+        existing = icloud_cal.list_names(cal)
+    except icloud_cal.CalError:
+        existing = set()
+    new_lines, err_lines = [], []
     for item, src, note in found:
         line = f"• {fmt_day(item['day'])} {to_hm(item['start'])}–{to_hm(item['end'] % (24 * 60))} · " \
                f"{src.get('name', item['src'])} · {item['court'].split(SEP, 1)[-1]}"
-        ok = True
+        uid = cal_uid(item)
+        is_new = icloud_cal.event_name(uid) not in existing
         try:
-            icloud_cal.put_event(cal_uid(item), make_ics(item, src, tz, note), cal)
-            lines.append(line)
+            icloud_cal.put_event(uid, make_ics(item, src, tz, note), cal)
+            if is_new:
+                new_lines.append(line)
+            status = "нова" if is_new else "вже була"
         except icloud_cal.CalError as exc:
-            ok = False
-            failed += 1
-            lines.append(f"{line} ⚠️ {exc}")
-        print(f"{item['day']} {to_hm(item['start'])} {src.get('short')}: {'OK' if ok else 'ПОМИЛКА'}")
-    print(f"знайдено майбутніх броней: {len(found)}, помилок: {failed}")
-    tg_send("📅 Додано в календар ваші майбутні броні:\n" + "\n".join(lines) if lines
-            else "📅 Майбутніх броней не знайдено.")
-    return 1 if failed else 0
+            err_lines.append(f"{line} ⚠️ {exc}")
+            status = "ПОМИЛКА"
+        print(f"{item['day']} {to_hm(item['start'])} {src.get('short')}: {status}")
+    print(f"знайдено майбутніх броней: {len(found)}, нових у календарі: {len(new_lines)}, помилок: {len(err_lines)}")
+    # у Telegram - лише нове (і помилки), без повного списку щоразу
+    if new_lines or err_lines:
+        tg_send("\n".join((["📅 Додано в календар:"] + new_lines if new_lines else [])
+                          + (["⚠️ Не вдалося додати:"] + err_lines if err_lines else [])))
+    return 1 if err_lines else 0
 
 
 def selftest() -> int:

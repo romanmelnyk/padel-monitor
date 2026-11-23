@@ -109,6 +109,17 @@ def put_event(uid: str, ics: bytes, cal_url: str | None = None) -> None:
         raise CalError(f"не вдалося додати подію: HTTP {code} {text[:150]}")
 
 
+def list_names(cal_url: str) -> set[str]:
+    """Назви файлів подій у календарі (без завантаження вмісту)."""
+    root, _final = _propfind(cal_url, "<d:getetag/>", "1")
+    return {resp.findtext("d:href", default="", namespaces=NS).strip().rsplit("/", 1)[-1]
+            for resp in root.findall("d:response", NS)}
+
+
+def event_name(uid: str) -> str:
+    return _res_url("", uid).rsplit("/", 1)[-1]
+
+
 def list_events(cal_url: str) -> list[tuple[str, str]]:
     """[(url, вміст .ics)] подій календаря, які створив бот (файли *_padel-monitor.ics)."""
     root, final = _propfind(cal_url, "<d:getetag/>", "1")
