@@ -933,6 +933,48 @@ BLONIA_REFRESH_SEC = 3 * 3600  # як часто перечитувати бро
 
 
 _PT_CSRF: list[str] = []
+_PT_JAR: dict[str, str] = {}  # поточні cookie PTmates (як у браузері)
+
+
+def _parse_cookie_header(s: str) -> dict[str, str]:
+    out = {}
+    for part in s.replace("\n", ";").split(";"):
+        if "=" in part:
+            k, v = part.strip().split("=", 1)
+            if k.strip():
+                out[k.strip()] = v.strip()
+    return out
+
+
+def _pt_jar_init(pm: dict) -> None:
+    """Cookie з секрету PTMATES_COOKIE + новіші, які сайт видав раніше (зберігаються в стані).
+    Якщо ви оновили секрет, беремо його, а не старі збережені."""
+    import hashlib
+    secret = os.environ.get("PTMATES_COOKIE", "").strip()
+    sh = hashlib.sha1(secret.encode()).hexdigest()
+    _PT_JAR.clear()
+    _PT_JAR.update(_parse_cookie_header(secret))
+    if pm.get("secret_hash") == sh:
+        _PT_JAR.update(pm.get("jar") or {})
+    pm["secret_hash"] = sh
+
+
+def _pt_cookie() -> str:
+    return "; ".join(f"{k}={v}" for k, v in _PT_JAR.items())
+
+
+def _pt_absorb(headers) -> None:
+    """Сайт видав нові cookie (Set-Cookie) -> запам'ятовуємо, як браузер."""
+    for sc in headers.get_all("Set-Cookie") or []:
+        first, *attrs = sc.split(";")
+        if "=" not in first:
+            continue
+        k, v = first.strip().split("=", 1)
+        low = ";".join(attrs).lower()
+        if not v or "max-age=0" in low or "expires=thu, 01 jan 1970" in low:
+            _PT_JAR.pop(k, None)
+        else:
+            _PT_JAR[k] = v
 
 
 def _pt_csrf() -> str:
@@ -940,8 +982,9 @@ def _pt_csrf() -> str:
     if not _PT_CSRF:
         import re
         req = urllib.request.Request(PTMATES_URL + "/calendar", headers={
-            "Cookie": os.environ.get("PTMATES_COOKIE", "").strip(), "User-Agent": "padel-slot-monitor/1.0"})
+            "Cookie": _pt_cookie(), "User-Agent": "padel-slot-monitor/1.0"})
         with urllib.request.urlopen(req, timeout=60) as resp:
+            _pt_absorb(resp.headers)
             html = resp.read().decode("utf-8", "replace")
         m = re.search(r'<meta[^>]+name=["\']csrf-token["\'][^>]+content=["\']([^"\']+)', html) or \
             re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']csrf-token', html)
@@ -952,13 +995,14 @@ def _pt_csrf() -> str:
 def _pt(method: str, path: str, body=None):
     """Запит до PTmates з вашою сесією (секрет PTMATES_COOKIE)."""
     data = json.dumps(body).encode("utf-8") if body is not None else None
-    headers = {"Cookie": os.environ.get("PTMATES_COOKIE", "").strip(), "Accept": "application/json",
-               "Content-Type": "application/json", "User-Agent": "padel-slot-monitor/1.0"}
+    headers = {"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "padel-slot-monitor/1.0"}
     if method != "GET":
         headers.update({"X-CSRF-Token": _pt_csrf(), "Origin": PTMATES_URL, "Referer": f"{PTMATES_URL}/calendar"})
+    headers["Cookie"] = _pt_cookie()
     req = urllib.request.Request(PTMATES_URL + path, data=data, method=method, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:  # PTmates інколи відповідає повільно
+            _pt_absorb(resp.headers)
             raw = resp.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         raise T4UError(f"PTmates HTTP {exc.code} {method} {path}: {exc.read()[:200]!r}") from None
@@ -1073,16 +1117,20 @@ def ptmates_sync() -> int:
     tz = ZoneInfo(cfg["timezone"])
     state = load_state()
     pm = state.setdefault("ptmates", {"hash": {}})
+    _pt_jar_init(pm)
+    before = dict(_PT_JAR)
     req = urllib.request.Request(f"{PTMATES_URL}/api/calendar/bootstrap", headers={
-        "Cookie": cookie, "Accept": "application/json", "User-Agent": "padel-slot-monitor/1.0"})
+        "Cookie": _pt_cookie(), "Accept": "application/json", "User-Agent": "padel-slot-monitor/1.0"})
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            _pt_absorb(resp.headers)
             raw = resp.read().decode("utf-8")
         data = json.loads(raw)
         if not isinstance(data.get("reservations"), list):
             raise ValueError("немає reservations")
     except Exception as exc:  # noqa: BLE001 - сесія закінчилась (редирект на /login) або сайт недоступний
         log(f"ptmates: {type(exc).__name__}: {str(exc)[:150]}")
+        pm["jar"] = dict(_PT_JAR)
         n = pm.get("fails", 0) + 1
         pm["fails"] = n
         if n == 3 and not pm.get("warned"):
@@ -1093,6 +1141,8 @@ def ptmates_sync() -> int:
         return 1
     pm.pop("fails", None)
     pm.pop("warned", None)
+    if _PT_JAR != before:
+        print(f"ptmates: сайт оновив cookie ({', '.join(sorted(k for k in _PT_JAR if before.get(k) != _PT_JAR[k]))})")
     # лише майбутні ігри (сайт віддає всі одним запитом, фільтра за датою немає)
     _now_s = datetime.now(tz).strftime("%Y-%m-%dT%H:%M:%S")
     data["reservations"] = [r for r in data["reservations"] if str(r.get("ends_at", ""))[:19] > _now_s]
@@ -1160,6 +1210,7 @@ def ptmates_sync() -> int:
             cal = cal or icloud_cal.find_calendar()
             icloud_cal.delete_event(f"{rid}@padel-monitor", cal)
             changes.append("🗑 гру прибрано з PTmates — видалено з календаря")
+    pm["jar"] = dict(_PT_JAR)  # новіші cookie від сайту -> на наступний раз
     save_state(state)
     for c in changes:  # без повідомлень у Telegram: лише в журнал
         print(f"ptmates: {c}")
