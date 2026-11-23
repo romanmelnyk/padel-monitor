@@ -6000,3 +6000,17 @@ ts,slot_date,slot_time,court,event,lead_min,free_min
 2026-11-23T07:01:00+01:00,2026-11-23,07:30,PadelHouse · Padel 2 Oshee,taken,29,9712
 2026-11-23T07:01:00+01:00,2026-11-23,07:30,PadelHouse · Padel 3,taken,29,9712
 2026-11-23T07:01:00+01:00,2026-11-23,07:30,PadelHouse · Padel 4 Bozza,taken,29,9712
+2026-11-23T07:31:00+01:00,2026-11-23,07:30,Błonia · Padel 1,expired,0,10530
+2026-11-23T07:31:00+01:00,2026-11-23,07:30,Błonia · Padel 2,expired,0,10530
+2026-11-23T07:31:00+01:00,2026-11-23,07:30,Błonia · Padel 3,expired,0,10530
+2026-11-23T07:31:00+01:00,2026-11-23,07:30,Błonia · Padel 4,expired,0,10530
+2026-11-23T07:31:00+01:00,2026-11-25,13:00,PadelHouse · Padel 4 Bozza,taken,3209,9742
+2026-11-23T07:31:00+01:00,2026-11-25,13:30,PadelHouse · Padel 4 Bozza,taken,3239,9742
+2026-11-23T07:31:00+01:00,2026-11-27,07:00,PadelHouse · Padel 4 Bozza,taken,5729,9742
+2026-11-23T07:31:00+01:00,2026-11-27,07:30,PadelHouse · Padel 4 Bozza,taken,5759,9742
+2026-11-23T07:31:00+01:00,2026-11-27,08:00,PadelHouse · Padel 2 Oshee,taken,5789,9742
+2026-11-23T07:31:00+01:00,2026-11-27,08:30,PadelHouse · Padel 2 Oshee,taken,5819,9742
+2026-11-23T07:31:00+01:00,2026-12-04,07:00,PadelHouse · Padel 3,taken,15809,3330
+2026-11-23T07:31:00+01:00,2026-12-04,07:30,PadelHouse · Padel 3,taken,15839,3330
+2026-11-23T07:31:00+01:00,2026-12-04,08:00,PadelHouse · Padel 3,taken,15869,3330
+2026-11-23T07:31:00+01:00,2026-12-04,08:30,PadelHouse · Padel 3,taken,15899,3330
