@@ -109,6 +109,27 @@ def put_event(uid: str, ics: bytes, cal_url: str | None = None) -> None:
         raise CalError(f"не вдалося додати подію: HTTP {code} {text[:150]}")
 
 
+def list_events(cal_url: str) -> list[tuple[str, str]]:
+    """[(url, вміст .ics)] подій календаря, які створив бот (файли *_padel-monitor.ics)."""
+    root, final = _propfind(cal_url, "<d:getetag/>", "1")
+    out = []
+    for resp in root.findall("d:response", NS):
+        href = resp.findtext("d:href", default="", namespaces=NS).strip()
+        if not href.endswith("_padel-monitor.ics"):
+            continue
+        url = urllib.parse.urljoin(final, href)
+        code, text, _ = _req("GET", url)
+        if code == 200:
+            out.append((url, text))
+    return out
+
+
+def delete_url(url: str) -> None:
+    code, text, _ = _req("DELETE", url)
+    if code not in (200, 204, 404):
+        raise CalError(f"не вдалося видалити подію: HTTP {code} {text[:150]}")
+
+
 def delete_event(uid: str, cal_url: str | None = None) -> None:
     cal_url = cal_url or find_calendar()
     code, text, _ = _req("DELETE", _res_url(cal_url, uid))

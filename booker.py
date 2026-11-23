@@ -148,7 +148,14 @@ def make_ics(item: dict, src: dict, tz: ZoneInfo, note: str = "") -> bytes:
     return "\r\n".join(lines).encode("utf-8")
 
 
+def blonia_uid(day: str, start_min: int) -> str:
+    """Одна стала подія календаря на гру в Błonia, хоч би звідки вона прийшла (бот, twojtenis, PTmates)."""
+    return f"blonia-{day}-{start_min // 60:02d}{start_min % 60:02d}"
+
+
 def cal_uid(item: dict) -> str:
+    if "blonia" in _norm(item.get("src", "")) or "blonia" in _norm(item.get("court", "").split(SEP, 1)[0]):
+        return f"{blonia_uid(item['day'], item['start'])}@padel-monitor"
     return f"{item.get('uuid') or item.get('key') or item['day']}@padel-monitor"
 
 
@@ -1095,7 +1102,6 @@ def ptmates_sync() -> int:
         log(f"ptmates_publish: {type(exc).__name__}: {exc}")
     data["reservations"] = [r for r in data["reservations"] if str(r.get("ends_at", ""))[:19] > _now_s]
     # гра Błonia в PTmates = бронь twojtenis: та сама подія в календарі (без дубліката)
-    blonia_uid = {f"{b['day']}T{b['start']}": b["id"] for b in (pm.get("blonia") or {}).get("items", [])}
 
     now = datetime.now(tz)
     cal = None
@@ -1111,8 +1117,8 @@ def ptmates_sync() -> int:
         if end <= now:
             continue
         rid = str(r.get("id"))
-        if "blonia" in _norm(r.get("title")) and blonia_uid.get(str(r.get("starts_at"))[:16]):
-            rid = blonia_uid[str(r.get("starts_at"))[:16]]
+        if "blonia" in _norm(r.get("title")):
+            rid = blonia_uid(start.date().isoformat(), start.hour * 60 + start.minute)
         uid = f"{rid}@padel-monitor"
         seen.add(uid)
         status = str(r.get("status") or "").upper()
@@ -1161,6 +1167,26 @@ def ptmates_sync() -> int:
     return 0
 
 
+def cleanup_blonia_duplicates(cal: str, tz: ZoneInfo) -> int:
+    """Прибирає майбутні події Błonia зі старими ідентифікаторами (до переходу на blonia-ДАТА-ЧАС).
+    Повертає кількість видалених; правильні події одразу перезаписує sync."""
+    import icloud_cal
+    import re
+    today = datetime.now(tz).strftime("%Y%m%d")
+    n = 0
+    for url, text in icloud_cal.list_events(cal):
+        name = url.rsplit("/", 1)[-1]
+        if name.startswith("blonia-"):
+            continue
+        summary = (re.search(r"^SUMMARY:(.*)$", text, re.M) or [None, ""])[1]
+        start = (re.search(r"^DTSTART[^:]*:(\d{8})", text, re.M) or [None, ""])[1]
+        if "blonia" in _norm(summary.replace("\\", "")) and start >= today:
+            icloud_cal.delete_url(url)
+            n += 1
+            print(f"календар: прибрано дублікат Błonia {start} ({name[:12]}…)")
+    return n
+
+
 def sync_calendar() -> int:
     """Додає в календар iCloud усі ваші майбутні броні (повторний запуск не створює дублікатів)."""
     import icloud_cal
@@ -1172,6 +1198,7 @@ def sync_calendar() -> int:
     try:
         found = collect_my_bookings(cfg, tz)
         cal = icloud_cal.find_calendar()
+        cleanup_blonia_duplicates(cal, tz)
     except (T4UError, icloud_cal.CalError) as exc:
         print(f"ПОМИЛКА: {exc}")
         tg_send(f"⚠️ Синхронізація календаря не вдалася: {exc}")
