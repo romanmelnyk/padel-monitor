@@ -6992,3 +6992,23 @@ ts,slot_date,slot_time,court,event,lead_min,free_min
 2026-11-25T15:02:00+01:00,2026-12-20,14:30,Fame · Padel hala,taken,35968,6661
 2026-11-25T15:02:00+01:00,2026-12-20,15:00,Fame · Padel hala,taken,35998,6661
 2026-11-25T15:02:00+01:00,2026-12-20,15:30,Fame · Padel hala,taken,36028,6661
+2026-11-25T15:32:00+01:00,2026-11-25,23:00,PadelHouse · Padel 1 Noho,freed,448,
+2026-11-25T15:32:00+01:00,2026-11-25,23:30,PadelHouse · Padel 1 Noho,freed,478,
+2026-11-25T15:32:00+01:00,2026-11-26,10:00,PadelHouse · Padel 1 Noho,freed,1108,
+2026-11-25T15:32:00+01:00,2026-11-26,10:30,PadelHouse · Padel 1 Noho,freed,1138,
+2026-11-25T15:32:00+01:00,2026-11-26,13:00,PadelHouse · Padel 1 Noho,freed,1288,
+2026-11-25T15:32:00+01:00,2026-11-26,13:30,PadelHouse · Padel 1 Noho,freed,1318,
+2026-11-25T15:32:00+01:00,2026-11-26,23:00,PadelHouse · Padel 1 Noho,freed,1888,
+2026-11-25T15:32:00+01:00,2026-11-26,23:30,PadelHouse · Padel 1 Noho,freed,1918,
+2026-11-25T15:32:00+01:00,2026-11-25,15:30,Błonia · Padel 2,expired,0,11011
+2026-11-25T15:32:00+01:00,2026-11-25,15:30,Błonia · Padel 3,expired,0,1620
+2026-11-25T15:32:00+01:00,2026-11-25,15:30,Błonia · Padel 4,expired,0,11011
+2026-11-25T15:32:00+01:00,2026-11-25,15:30,Fame · Padel hala,expired,0,13103
+2026-11-25T15:32:00+01:00,2026-11-26,08:00,Błonia · Padel 4,taken,988,9571
+2026-11-25T15:32:00+01:00,2026-11-26,08:30,Błonia · Padel 4,taken,1018,9571
+2026-11-25T15:32:00+01:00,2026-12-03,10:00,PadelHouse · Padel 1 Noho,taken,11188,120
+2026-11-25T15:32:00+01:00,2026-12-03,10:30,PadelHouse · Padel 1 Noho,taken,11218,120
+2026-11-25T15:32:00+01:00,2026-12-03,13:00,PadelHouse · Padel 1 Noho,taken,11368,120
+2026-11-25T15:32:00+01:00,2026-12-03,13:30,PadelHouse · Padel 1 Noho,taken,11398,120
+2026-11-25T15:32:00+01:00,2026-12-03,23:00,PadelHouse · Padel 1 Noho,taken,11968,120
+2026-11-25T15:32:00+01:00,2026-12-03,23:30,PadelHouse · Padel 1 Noho,taken,11998,120
