@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  POLL_SECONDS: "1800"      # інтервал між перевірками (30 хв); додатково завжди о 00:01 за Варшавою
+  POLL_SECONDS: "1800"      # інтервал між перевірками (30 хв); додатково щоночі о 00:00:10 і 00:01 за Варшавою
   RUN_MINUTES: "300"        # скільки працює один запуск; біля опівночі подовжується, щоб не було паузи
   COMMIT_EVERY_SECONDS: "600"  # комітити журнали не частіше ніж раз на 10 хв
 
@@ -75,13 +75,20 @@ jobs:
 
           # хвилини від півночі за варшавським часом
           wmin() { local hm; hm=$(TZ=Europe/Warsaw date +%H%M); echo $(( 10#${hm:0:2} * 60 + 10#${hm:2:2} )); }
-          # 23:45-00:20: не завершуємо запуск, щоб перевірка о 00:01 точно відбулась
+          # 23:45-00:20: не завершуємо запуск, щоб нічні перевірки точно відбулись
           near_midnight() { local m; m=$(wmin); [ "$m" -ge 1425 ] || [ "$m" -lt 20 ]; }
-          # секунд до 00:01:00 за Варшавою: о цій порі відкриваються нові дні, перевіряємо точно в цей момент
+          # 23:55-00:05: лише перевірка кортів, без PTmates (щоб нічні перевірки не запізнювались)
+          midnight_rush() { local m; m=$(wmin); [ "$m" -ge 1435 ] || [ "$m" -lt 5 ]; }
+          # секунд до найближчої нічної перевірки за Варшавою: 00:00:10 (новий день щойно відкрився)
+          # і 00:01:00 (повторно, якщо клуб відкрив день із запізненням)
           to_midnight() {
-            local hms s d; hms=$(TZ=Europe/Warsaw date +%H%M%S)
+            local hms s d best=86400; hms=$(TZ=Europe/Warsaw date +%H%M%S)
             s=$(( 10#${hms:0:2} * 3600 + 10#${hms:2:2} * 60 + 10#${hms:4:2} ))
-            d=$(( 60 - s )); [ "$d" -le 0 ] && d=$(( d + 86400 )); echo "$d"
+            for t in 10 60; do
+              d=$(( t - s )); [ "$d" -le 0 ] && d=$(( d + 86400 ))
+              [ "$d" -lt "$best" ] && best=$d
+            done
+            echo "$best"
           }
 
           end=$(( $(date +%s) + RUN_MINUTES * 60 ))
@@ -89,8 +96,8 @@ jobs:
           while [ "$(date +%s)" -lt "$end" ] || near_midnight; do
             started=$(date +%s)
             python collector.py || echo "collector failed"
-            python booker.py ptmates-sync || echo "ptmates sync failed"
-            if [ $(( started - last_commit )) -ge "$COMMIT_EVERY_SECONDS" ]; then
+            if ! midnight_rush; then python booker.py ptmates-sync || echo "ptmates sync failed"; fi
+            if ! midnight_rush && [ $(( started - last_commit )) -ge "$COMMIT_EVERY_SECONDS" ]; then
               commit_data; last_commit=$(date +%s)
             fi
             sleep_for=$(( POLL_SECONDS - ($(date +%s) - started) ))
