@@ -7467,3 +7467,9 @@ ts,slot_date,slot_time,court,event,lead_min,free_min
 2026-11-26T14:32:00+01:00,2026-11-29,17:30,Błonia · Padel 4,taken,4498,30
 2026-11-26T14:32:00+01:00,2026-11-29,18:00,Błonia · Padel 4,taken,4528,30
 2026-11-26T14:32:00+01:00,2026-11-29,18:30,Błonia · Padel 4,taken,4558,30
+2026-11-26T15:02:00+01:00,2026-11-26,15:00,Błonia · Padel 2,expired,0,10981
+2026-11-26T15:02:00+01:00,2026-11-26,15:00,Fame · Padel hala,expired,0,3301
+2026-11-26T15:02:00+01:00,2026-11-26,15:00,PadelHouse · Padel 2 Oshee,expired,0,2909
+2026-11-26T15:02:00+01:00,2026-11-26,15:00,PadelHouse · Padel 3,expired,0,1680
+2026-11-26T15:02:00+01:00,2026-11-26,15:30,PadelHouse · Padel 2 Oshee,taken,28,2909
+2026-11-26T15:02:00+01:00,2026-11-26,15:30,PadelHouse · Padel 3,taken,28,1680
